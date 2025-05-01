@@ -1,0 +1,2 @@
+class ParsedResultError(RuntimeError):
+    pass
