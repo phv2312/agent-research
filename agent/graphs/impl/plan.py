@@ -26,7 +26,11 @@ class TopicPlanningOutput(BaseModel):
     outline: Outline | None = None
 
 
-class TopicPlanningState(TopicPlanningInput, TopicPlanningOutput): ...
+class TopicPlanningState(TopicPlanningInput, TopicPlanningOutput):
+    saerched_results: ScoredChunks = Field(
+        default_factory=lambda: ScoredChunks([]),
+        description="Search results from web search",
+    )
 
 
 @dataclass
@@ -53,36 +57,46 @@ class TopicPlanningGraph(BaseGraphNode[TopicPlanningInput, TopicPlanningOutput])
 
         super().__init__()
 
-    async def plan(self, planing_input: TopicPlanningInput) -> TopicPlanningOutput:
-        logger.info("Search web for query; %s", planing_input.message)
+    async def search(
+        self,
+        planning_input: TopicPlanningInput,
+    ) -> TopicPlanningState:
+        logger.info("Search web for query; %s", planning_input.message)
         searched_results: ScoredChunks = await self.websearch.asearch(
-            query=planing_input.message,
+            query=planning_input.message,
             topk=self.settings.websearch_topk,
         )
-        message = UserMessage(
-            content=prompts.REPORT_PLANNER.render(
-                topic=planing_input.message,
-                context=searched_results.context,
-                feedback=planing_input.feedback,
-            )
+        return TopicPlanningState(
+            message=planning_input.message,
+            feedback=planning_input.feedback,
+            saerched_results=searched_results,
         )
 
+    async def plan(self, state: TopicPlanningState) -> TopicPlanningOutput:
+        message = UserMessage(
+            content=prompts.REPORT_PLANNER.render(
+                topic=state.message,
+                context=state.saerched_results.context,
+                feedback=state.feedback,
+            )
+        )
         outline = await self.outline_program.aprocess(
             message=message,
         )
-
         return TopicPlanningOutput(
             outline=outline,
         )
 
     def build_graph(self) -> CompiledGraph:
-        builder = StateGraph(
-            TopicPlanningState,
-            input=TopicPlanningInput,
-            output=TopicPlanningOutput,
+        return (
+            StateGraph(
+                TopicPlanningState,
+                input=TopicPlanningInput,
+                output=TopicPlanningOutput,
+            )
+            .add_node("search", self.search)
+            .add_node("plan", self.plan)
+            .add_edge("search", "plan")
+            .set_entry_point("search")
+            .compile()
         )
-
-        builder.add_node("plan", self.plan)
-        builder.set_entry_point("plan")
-
-        return builder.compile()

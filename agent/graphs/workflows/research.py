@@ -16,12 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 PLAN_FEEDBACK: Final[Template] = Template(
-    """
-    Here is the outline of the report:\n
-    {{outline}}\n
-    Please type `Y` to confirm or input any feedbacks if any.\n
-    Your answer [Y/<feedback>]:\n
-    """
+    """#### Please help me to review the below outline\n---\n{{outline}}\n\n---\n\n#### Please type `Y` to confirm or `input any feedbacks if any`"""
 )
 
 

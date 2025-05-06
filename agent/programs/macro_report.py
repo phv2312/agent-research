@@ -19,7 +19,7 @@ class Section(BaseModel):
 
     @property
     def as_str(self) -> str:
-        return f"## {self.title}\n\n{self.description}\n\n{self.markdown if self.research else ''}"
+        return f"#### {self.title}\n\n{self.description}\n\n{self.markdown if self.research else ''}"
 
 
 class Outline(BaseModel):
@@ -32,7 +32,7 @@ class Outline(BaseModel):
     @property
     def as_str(self) -> str:
         sections = "\n\n".join(section.as_str for section in self.sections)
-        return f"# {self.page_title}\n\n{sections}".strip()
+        return f"### {self.page_title}\n\n{sections}".strip()
 
 
 class OutlineReportProgram(BaseProgram[Outline]):

@@ -3,57 +3,66 @@ from jinja2 import Template
 
 TOPIC_SUMMARIZATION = Template(
     """
-  You are an expert technical writer crafting a section that synthesizes information from the rest of the report.
+  You are an expert technical writer crafting a structured report from a conversation.
 
-  <Section title>
-  {{section_title}}
-  </Section title>
-
-  <Available report content>
-  {{context}}
-  </Available report content>
+  <Conversation History>
+  {{conversation}}
+  </Conversation History>
 
   <Task>
-  1. Section-Specific Approach:
+  1. Report Structure
+    - Analyze the full conversation and identify natural groupings of related question–answer pairs.
+    - 500-1000 word limit
 
-  For Introduction:
-  - Use # for report title (Markdown format)
-  - 50-100 word limit
-  - Write in simple and clear language
-  - Focus on the core motivation for the report in 1-2 paragraphs
-  - Use a clear narrative arc to introduce the report
-  - Include NO structural elements (no lists or tables)
-  - No sources section needed
-
-  For Conclusion/Summary:
-  - Use ## for section title (Markdown format)
-  - 100-150 word limit
-  - For comparative reports:
+  2. Conclusion
+    - For comparative reports:
       * Must include a focused comparison table using Markdown table syntax
       * Table should distill insights from the report
       * Keep table entries clear and concise
-  - For non-comparative reports:
+    - For non-comparative reports:
       * Only use ONE structural element IF it helps distill the points made in the report:
       * Either a focused table comparing items present in the report (using Markdown table syntax)
       * Or a short list using proper Markdown list syntax:
         - Use `*` or `-` for unordered lists
         - Use `1.` for ordered lists
         - Ensure proper indentation and spacing
-  - End with specific next steps or implications
-  - No sources section needed
 
-  3. Writing Approach:
-  - Use concrete details over general statements
-  - Make every word count
-  - Focus on your single most important point
+  3. Writing Approach
+    - USE #### for section title (Markdown format)
+    - Use concrete details over generalities.
+    - No fixed requirement for only an “Introduction” and “Conclusion” — let the conversation dictate how many sections are needed.
+    - The report should be in the same language as the conversation.
+
   </Task>
 
   <Quality Checks>
-  - For introduction: 50-100 word limit, # for report title, no structural elements, no sources section
-  - For conclusion: 100-150 word limit, ## for section title, only ONE structural element at most, no sources section
-  - Markdown format
-  - Do not include word count or any preamble in your response
+  - Each section’s content is ≤500 words.
+  - Introduction (if included) is ≤100 words.
+  - Conclusion (if included) is ≤150 words.
+  - Entire report in Markdown, with clear, descriptive headings and no extra structural constraints.
   </Quality Checks>
+  """
+)
+
+ANSWER_BY_EXPERT = Template(
+    """
+  You are the helpful assistant. Given the context and query, you will provide a comprehensive answer to the question.
+
+  <User query>
+  {{user_query}}
+  </User query>
+
+  <Context>
+  {{context}}
+  </Context>
+
+  <Task>
+  Based on the provided context, answer the user query.
+  The answer should be relevant to the user's query and provide additional insights or information that may be helpful.
+  The answer should be comprehensive and informative, providing all necessary details to address the user's question.
+  The answer should be well-structured, with a logical flow of information.
+  The answer should be clear and concise, the answer length should be in 100 - 600 words at maximum and answered by the same language used in user query.
+  </Task>
   """
 )
 
@@ -62,13 +71,13 @@ QUERY_BY_EXPERT = Template(
     """
   You are an expert technical writer crafting targeted web search queries that will gather comprehensive information for writing a technical report section.
 
-  <Report topic>
-  {{topic}}
-  </Report topic>
-
   <Section topic>
   {{section_topic}}
   </Section topic>
+
+  <Section description>
+  {{section_description}}
+  <Section description>
 
   <Conversation>
   {{conversation}}
@@ -76,17 +85,19 @@ QUERY_BY_EXPERT = Template(
 
   <Task>
   Based on the provided conversation, which is a list of query/answer pairs.
-  Your goal is to generate {{number_of_queries}} search queries that will help gather comprehensive information or resolve missing information
+  Your goal is to GENERATE ONLY ONE SEARCH QUERY AT A TIME, which will help gather comprehensive information or resolve missing information
   above the section topic.
 
   The queries should:
 
   1. Be related to the topic
   2. Examine different aspects of the topic
-  3. DON'T REPEAT the query in the provided conversation
+  3. DON'T REPEAT the query/question in the provided conversation
   4. IF you don't have questions, or the information provided in conversation has adequately addresses the section topic. Just return empty query is fine.
+  5. Use the same language as the section topic
 
   Make the queries specific enough to find high-quality, relevant sources.
+  Please first THINK CAREFULLY ABOUT THE TOPIC AND THE CONVERSATION, then point out which information/aspects is missing or needs to be clarified.
   </Task>
   """
 )
