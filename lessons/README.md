@@ -56,6 +56,23 @@ The script [demo.py](./demo.py) demonstrates:
 - Basic Human-in-the-Loop (HITL) support:
     - Checkpointer
     - Interrupt / Resume
+    - Usage of [Command](https://langchain-ai.github.io/langgraph/concepts/low_level/#send) / [Send](https://langchain-ai.github.io/langgraph/concepts/low_level/#send) to control graph flow.
 
 - Streaming responses from a specific graph node:
     - Using `stream_mode="custom"`
+
+
+### 5. Further Read
+
+- [Langgraph Persistence Review](https://langchain-ai.github.io/langgraph/concepts/persistence/)
+
+    * Overview about langgraph persistence layer. When langgraph save the snapshot of nodes, how the persistence layer can help fault-tolerance, ...
+    * What is `thread` ? ~ `conversation-id`
+    * Checkpoint
+        - get-state
+        - get-state-history
+        - replay
+        - update-state ? Can it be used as the alternative method for `Command(resume=<...>)`?
+        - time-travel
+
+- [Langgraph examples](https://github.com/langchain-ai/langgraph/tree/main/examples)
