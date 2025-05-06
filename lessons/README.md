@@ -1,4 +1,4 @@
-# Langgraph: Orchestration Framework for LLM Applications
+# LangGraph: Orchestration Framework for LLM Applications
 
 ## Key Concepts at a Glance
 
@@ -8,51 +8,54 @@
 
 ![Workflow & Agent Pattern](./assets/workflows.png)
 
-The trade-off between reliability and agent's controlability
+A trade-off exists between reliability and an agent's controllability.
 
 ![Reliability Curve](./assets/reliability-curve.png)
 
 ### 2. Essential Features
-- **👥 Human-in-the-Loop (HITL)**
 
-    * Langgraph supports checkpointer to save and reload state of each node.
+- **👥 Human-in-the-Loop (HITL)**
+    LangGraph supports a checkpointer to save and reload the state of each node.
 
     ```python
     input -> node-a -> [pause for feedback] -> [user feedback] -> [restore at the beginning of node-a] -> node-b -> end
     ```
 
 - **⚡ Real-time Streaming**
-    * Support multiples streaming method: `values`, `updates`, or `custom` or combination of those.
+    Supports multiple streaming methods: `values`, `updates`, `custom`, or any combination of these.
 
-        - `updates`: results after execution of each node.
-        - `values`: the shared state whenever it changes.
-        - `custom`: mostly use to stream response from LLM provider (it's necessary when use difference provider than Langchain).
+    - `updates`: Emits results after the execution of each node.
+    - `values`: Emits the shared state whenever it changes.
+    - `custom`: Primarily used to stream responses from an LLM provider (especially necessary when using providers other than LangChain).
 
 - **🔌 Provider Agnostic**
-    * Focus on orchestrator level only. We can use arbitrary LLM provider such as Langchain, LLamaindex, or OpenAI.
+    LangGraph focuses solely on orchestration. You can use any LLM provider such as LangChain, LlamaIndex, or OpenAI.
 
-- **⚙️ Parallelization & Subgraphs & Async**
-    * The node can be a function or a subgraph.
-    * Automatic parallelly node execution.
-        - IF `node-a -> node-b & node-a -> node-c`, then `node-b` and `node-c` can be executed at the same time.
-    * Asynchronous compatibility.
+- **⚙️ Parallelization, Subgraphs, and Async Support**
+    - A node can be a function or a subgraph.
+    - Nodes can execute in parallel automatically.
+        - If `node-a -> node-b` and `node-a -> node-c`, then `node-b` and `node-c` can run concurrently.
+    - Fully asynchronous-compatible.
 
 ### 3. Building Blocks
+
 ![nodes-edges-state](./assets//nodes-edges-state.png)
 
-- **Nodes**: Functions/subgraphs defining actions
-- **Edges**: Define execution flow
-- **State**: Shared context between nodes
+- **Nodes**: Functions or subgraphs that define actions
+- **Edges**: Define the execution flow
+- **State**: Shared context passed between nodes
 
 ### 4. Demo
 
-The below script [demo.py](.demo.py) demonstrates:
-- Define the simple graph to grasp basic understanding of `nodes - edges - states`.
-    * graph diagram
-    * difference between streaming events in `graph.astream()`
-- Baisc Human In The Loop (HITL) supports.
-    * checkpointer
-    * interrupt / resume
+The script [demo.py](./demo.py) demonstrates:
 
-- Streaming responses from the specified graph node.
-    * `stream_mode=custom`
+- Defining a simple graph to understand the basics of `nodes - edges - state`:
+    - Graph diagram
+    - Difference between streaming events in `graph.astream()`
+
+- Basic Human-in-the-Loop (HITL) support:
+    - Checkpointer
+    - Interrupt / Resume
+
+- Streaming responses from a specific graph node:
+    - Using `stream_mode="custom"`
