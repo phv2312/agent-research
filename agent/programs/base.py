@@ -2,10 +2,9 @@ from collections.abc import Sequence
 from typing import cast
 
 from openai import AsyncAzureOpenAI
-from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel
 
-from agent.models.messages import AssistantMessage, SystemMessage, UserMessage
+from agent.models.messages import AssistantMessage, Messages, SystemMessage, UserMessage
 from .exc import ParsedResultError
 
 
@@ -32,30 +31,18 @@ class BaseProgram[ModelOutT: BaseModel]:
         system_message: SystemMessage | None = None,
         history: Sequence[UserMessage | AssistantMessage] | None = None,
     ) -> ModelOutT:
-        if message is None and system_message is None:
-            raise ValueError("Either message or system_message must be provided.")
-
-        all_messages = [
-            *[msg.to_openai_message() for msg in (history or [])],
-        ]
-
-        if message:
-            all_messages = [
-                *all_messages,
-                message.to_openai_message(),
-            ]
-
-        if system_message:
-            all_messages = [
-                system_message.to_openai_message(),
-                *all_messages,
-            ]
+        messages = Messages.from_conversation(
+            message=message,
+            system_message=system_message,
+            history=history,
+        ).as_openai_list()
 
         completion = await self.openai.beta.chat.completions.parse(
             model=self.deployment_name,
-            messages=cast(list[ChatCompletionMessageParam], all_messages),
+            messages=messages,
             response_format=self.ModelOutCls,
         )
+
         first_choice = completion.choices[0].message
         if first_choice.refusal:
             raise ParsedResultError(first_choice.refusal)

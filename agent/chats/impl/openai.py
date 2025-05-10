@@ -1,8 +1,7 @@
 from collections.abc import AsyncGenerator, Sequence
-from typing import Any, cast
+from typing import Any
 from openai import AsyncAzureOpenAI
-from openai.types.chat import ChatCompletionMessageParam
-from agent.models.messages import UserMessage, SystemMessage, AssistantMessage
+from agent.models.messages import UserMessage, SystemMessage, AssistantMessage, Messages
 
 
 class OpenAIChatModel:
@@ -20,33 +19,6 @@ class OpenAIChatModel:
         )
         self.deployment_name = deployment_name
 
-    @staticmethod
-    def aggregate_messages(
-        message: UserMessage | None = None,
-        system_message: SystemMessage | None = None,
-        history: Sequence[AssistantMessage | UserMessage] | None = None,
-    ) -> list[ChatCompletionMessageParam]:
-        if message is None and system_message is None:
-            raise ValueError("Either message or system_message must be provided.")
-
-        messages = [
-            *[msg.to_openai_message() for msg in (history or [])],
-        ]
-
-        if message:
-            messages = [
-                *messages,
-                message.to_openai_message(),
-            ]
-
-        if system_message:
-            messages = [
-                system_message.to_openai_message(),
-                *messages,
-            ]
-
-        return cast(list[ChatCompletionMessageParam], messages)
-
     async def astream(
         self,
         message: UserMessage | None = None,
@@ -57,11 +29,11 @@ class OpenAIChatModel:
         *_: Any,
         **__: Any,
     ) -> AsyncGenerator[AssistantMessage, None]:
-        messages = self.aggregate_messages(
+        messages = Messages.from_conversation(
             message=message,
             system_message=system_message,
             history=history,
-        )
+        ).as_openai_list()
 
         async for response in await self.openai.chat.completions.create(
             model=self.deployment_name,
@@ -87,11 +59,11 @@ class OpenAIChatModel:
         *_: Any,
         **__: Any,
     ) -> AssistantMessage:
-        messages = self.aggregate_messages(
+        messages = Messages.from_conversation(
             message=message,
             system_message=system_message,
             history=history,
-        )
+        ).as_openai_list()
 
         response = await self.openai.chat.completions.create(
             model=self.deployment_name,
