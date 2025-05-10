@@ -1,10 +1,10 @@
-from .interface import ISearch
+from .interface import IWebSearch
 from .impl.tavily import TavilyWebSearch
 from .impl.duckduckgo import DuckduckgoWebSearch
 
 
 __all__ = [
-    "ISearch",
+    "IWebSearch",
     "TavilyWebSearch",
     "DuckduckgoWebSearch",
 ]

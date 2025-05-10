@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from .base import BaseProgram
+from agent.programs.base import BaseProgram
 
 
 class DialogQuestion(BaseModel):

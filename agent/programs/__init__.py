@@ -1,15 +1,19 @@
+from .base import BaseProgram
+from .interface import IProgram
 from .exc import ParsedResultError
-from .macro_report import OutlineReportProgram, Section, Outline
-from .dialog_question import DialogQuestion, DialogQuestionProgram
-from .queries import Queries, QueriesProgram
+from .impl.outline import OutlineReportProgram, Section, Outline
+from .impl.dialog_question import DialogQuestion, DialogQuestionProgram
+from .impl.search_queries import SearchQueries, SearchQueriesProgram
 
 __all__ = [
+    "IProgram",
+    "BaseProgram",
     "ParsedResultError",
     "DialogQuestion",
     "DialogQuestionProgram",
     "OutlineReportProgram",
     "Section",
     "Outline",
-    "Queries",
-    "QueriesProgram",
+    "SearchQueries",
+    "SearchQueriesProgram",
 ]

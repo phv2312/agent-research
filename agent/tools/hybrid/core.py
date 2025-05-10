@@ -4,7 +4,7 @@ import logging
 from agent.embeddings.interface import IEmbeddingModel
 from agent.models.document import ScoredChunks
 from agent.storages.vectordb.milvus import Milvus
-from agent.searches.impl.tavily import TavilyWebSearch
+from agent.searches import IWebSearch
 
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class HybridSearch:
     def __init__(
         self,
-        websearch: TavilyWebSearch,
+        websearch: IWebSearch,
         milvus: Milvus,
         embedding_model: IEmbeddingModel,
     ) -> None:

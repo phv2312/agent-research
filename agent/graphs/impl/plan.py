@@ -10,8 +10,8 @@ from agent.chats.interface import IChatModel
 from agent.graphs.base import BaseGraphNode
 from agent.models.document import ScoredChunks
 from agent.models.messages import UserMessage
-from agent.programs.macro_report import Outline, OutlineReportProgram
-from agent.searches import ISearch
+from agent.programs.outline import Outline, OutlineReportProgram
+from agent.searches import IWebSearch
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ class TopicPlanningGraph(BaseGraphNode[TopicPlanningInput, TopicPlanningOutput])
 
     def __init__(
         self,
-        websearch: ISearch,
+        websearch: IWebSearch,
         chat_model: IChatModel,
         outline_program: OutlineReportProgram,
         settings: TopicPlanningSettings | None = None,

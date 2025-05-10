@@ -22,10 +22,10 @@ from agent.programs import (
     Section,
     DialogQuestion,
     DialogQuestionProgram,
-    QueriesProgram,
+    SearchQueriesProgram,
 )
 from agent.graphs.base import BaseGraphNode
-from agent.searches import ISearch
+from agent.searches import IWebSearch
 from agent.graphs.models import StreamExpertEvent, ExpertData
 
 logger = logging.getLogger(__name__)
@@ -97,9 +97,9 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
     def __init__(
         self,
         chat_model: IChatModel,
-        websearch: ISearch,
+        websearch: IWebSearch,
         dialog_question_program: DialogQuestionProgram,
-        queries_program: QueriesProgram,
+        queries_program: SearchQueriesProgram,
         settings: DialogExpertSettings | None = None,
         executor_split_tokens: Executor | None = None,
     ) -> None:

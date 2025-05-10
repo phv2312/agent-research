@@ -108,7 +108,7 @@ def get_outline_program() -> OutlineProgram:
 
 @lru_cache(maxsize=1)
 def get_chat_model() -> OpenAIChatModel:
-    return Container().chat_model
+    return Container().chat_provider
 
 
 class StateInput(BaseModel):
