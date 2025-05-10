@@ -36,7 +36,7 @@ class TopicPlanningState(TopicPlanningInput, TopicPlanningOutput):
 @dataclass
 class TopicPlanningSettings:
     max_completion_tokens: int = 4096 * 10
-    websearch_topk: int = 5
+    websearch_topk: int = 2
 
 
 class TopicPlanningGraph(BaseGraphNode[TopicPlanningInput, TopicPlanningOutput]):

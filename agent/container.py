@@ -7,21 +7,20 @@ from agent.searches import (
     DuckduckgoWebSearch,
 )
 from agent.tools.hybrid.core import HybridSearch
-
-from .chats import IChatModel, OpenAIChatModel
-from .embeddings import IEmbeddingModel, SmallOpenAIEmbeddingModel
-from .extractors import (
+from agent.chats import IChatModel, OpenAIChatModel
+from agent.embeddings import IEmbeddingModel, SmallOpenAIEmbeddingModel
+from agent.extractors import (
     IExtractor,
     PDFExtractor,
 )
-from .storages.vectordb import Milvus
-from .programs import (
+from agent.storages.vectordb import Milvus
+from agent.programs import (
     DialogQuestionProgram,
     OutlineReportProgram,
 )
 
-from .env import Env
-from .storages.local import Storage
+from agent.env import Env
+from agent.storages.local import Storage
 
 
 class Container:

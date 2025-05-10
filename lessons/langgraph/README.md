@@ -12,14 +12,26 @@ A trade-off exists between reliability and an agent's controllability.
 
 ![Reliability Curve](./assets/reliability-curve.png)
 
-### 2. Essential Features
+### 2. Building Blocks
+
+![nodes-edges-state](./assets/nodes-edges-state.png)
+
+- **Nodes**: Functions or subgraphs that define actions
+- **Edges**: Define the execution flow
+- **State**: Shared context passed between nodes
+
+### 3. Essential Features
 
 - **👥 Human-in-the-Loop (HITL)**
-    LangGraph supports a checkpointer to save and reload the state of each node.
+    LangGraph supports a checkpointer (`one of the important features of langgraph`) to save and reload the state of each node.
 
     ```python
     input -> node-a -> [pause for feedback] -> [user feedback] -> [restore at the beginning of node-a] -> node-b -> end
     ```
+
+    [Visualization of checkpointers](https://langchain-ai.github.io/langgraph/concepts/persistence/#get-state-history) implemented behind the scene:
+
+    ![checkpointers](./assets/persistence-checkpointers.png)
 
 - **⚡ Real-time Streaming**
     Supports multiple streaming methods: `values`, `updates`, `custom`, or any combination of these.
@@ -36,14 +48,6 @@ A trade-off exists between reliability and an agent's controllability.
     - Nodes can execute in parallel automatically.
         - If `node-a -> node-b` and `node-a -> node-c`, then `node-b` and `node-c` can run concurrently.
     - Fully asynchronous-compatible.
-
-### 3. Building Blocks
-
-![nodes-edges-state](./assets//nodes-edges-state.png)
-
-- **Nodes**: Functions or subgraphs that define actions
-- **Edges**: Define the execution flow
-- **State**: Shared context passed between nodes
 
 ### 4. Demo
 

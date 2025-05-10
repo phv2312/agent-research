@@ -11,7 +11,7 @@ from langgraph.graph.graph import CompiledGraph
 from langgraph.types import Command, interrupt, Send
 from langgraph.checkpoint.memory import MemorySaver
 
-from agent.chats.openai import OpenAIChatModel
+from agent.chats.impl.openai import OpenAIChatModel
 from agent.container import Container
 from agent.env import Env
 from agent.models.messages import UserMessage
@@ -115,6 +115,9 @@ class StateInput(BaseModel):
     feedbacks: Annotated[list[str], operator.add] = Field(
         default_factory=list, description="feedbacks from user about the outline"
     )
+    allow_user_feedback: bool = Field(
+        default=True, description="Allow user to provide feedback"
+    )
     num_topics: int = Field(
         default=NUM_TOPICS, description="Number of topics to generate"
     )
@@ -130,7 +133,7 @@ class State(StateInput):
     markdown: str = Field(default="", description="Markdown content of the stories")
 
 
-async def plan_outline(
+async def plan_outline_wo_feedback(
     node_input: StateInput,
 ) -> Command[Literal["plan-outline", "write-story"]]:
     outline_program = get_outline_program()
@@ -143,27 +146,64 @@ async def plan_outline(
         )
     )
 
-    feedback = interrupt(FEEDBACK_TEMPLATE.render(outline=outline.content))
-    match feedback.lower():
-        case "y":
-            return Command(
-                goto=[
-                    Send(
-                        "write-story",
-                        StoryInput(
-                            topic=topic,
-                        ),
-                    )
-                    for topic in outline.topics
-                ]
-            )
-        case _:
-            return Command(
-                goto="plan-outline",
-                update=StateInput(
-                    feedbacks=[feedback],
+    return Command(
+        goto=[
+            Send(
+                "write-story",
+                StoryInput(
+                    topic=topic,
                 ),
             )
+            for topic in outline.topics
+        ]
+    )
+
+
+async def plan_outline(
+    node_input: StateInput,
+    # node_input: State,
+) -> Command[Literal["plan-outline", "write-story"]]:
+    def _send_topic(topics: list[str]) -> Command[Literal["write-story"]]:
+        return Command(
+            goto=[
+                Send(
+                    "write-story",
+                    StoryInput(
+                        topic=topic,
+                    ),
+                )
+                for topic in topics
+            ]
+        )
+
+    print("call outline planning with feedback:", node_input.allow_user_feedback)
+
+    outline_program = get_outline_program()
+    outline = await outline_program.aprocess(
+        message=UserMessage(
+            content=OUTLINE_PLANNING.render(
+                num_topics=node_input.num_topics,
+                feedbacks="\n\n".join(node_input.feedbacks),
+            ),
+        )
+    )
+
+    if node_input.allow_user_feedback:
+        feedback = interrupt(FEEDBACK_TEMPLATE.render(outline=outline.content))
+        match feedback.lower():
+            case "y":
+                return _send_topic(outline.topics)
+            case _:
+                return Command(
+                    goto="plan-outline",
+                    update=StateInput(
+                        feedbacks=[feedback],
+                    ),
+                )
+    else:
+        return {
+            "outline": outline,
+        }
 
 
 async def write_story(
@@ -221,10 +261,13 @@ def get_graph() -> CompiledGraph:
 
 async def main():
     graph = get_graph()
+    run_config = get_run_config()
 
+    print("Graph state:")
     async for event in graph.astream(
-        StateInput(),
-        stream_mode="updates",
+        StateInput(allow_user_feedback=False),
+        config=run_config.model_dump(),
+        stream_mode=["updates"],
     ):
         print(event)
 
@@ -263,7 +306,7 @@ async def main_interactive():
                     content = event["__interrupt__"][0].value
                     console.print(Markdown(content))
                 elif "story-streaming" in event:
-                    streaming_message += event.content
+                    streaming_message += event["story-streaming"]["content"]
                     live.update(Markdown(streaming_message))
                     await asyncio.sleep(0.1)
 
@@ -274,4 +317,5 @@ async def main_interactive():
 
 
 if __name__ == "__main__":
+    # asyncio.run(main())
     asyncio.run(main_interactive())

@@ -4,6 +4,7 @@ import asyncio
 import operator
 from typing import Annotated, Literal
 from pydantic import BaseModel, Field
+from langgraph.types import StreamWriter
 from langgraph.graph.graph import CompiledGraph
 from langgraph.graph import StateGraph, END
 from langchain_text_splitters import TokenTextSplitter
@@ -25,7 +26,7 @@ from agent.programs import (
 )
 from agent.graphs.base import BaseGraphNode
 from agent.searches import ISearch
-
+from agent.graphs.models import StreamExpertEvent, ExpertData
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,9 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
             chunk_overlap=chunk_overlap,
         ).split_text(text)
 
-    async def ask_question(self, state: DialogState) -> DialogConversation:
+    async def ask_question(
+        self, state: DialogState, writer: StreamWriter
+    ) -> DialogConversation:
         message = UserMessage(
             content=prompts.QUERY_BY_EXPERT.render(
                 section_topic=state.section.title,
@@ -141,11 +144,22 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
             message=message,
         )
 
+        writer(
+            StreamExpertEvent(
+                data=ExpertData(
+                    section_id=state.section.id,
+                    token=f"\n\n---\n\n### Question: {question.content}\n\n",
+                )
+            )
+        )
+
         return DialogConversation(
             question=question,
         )
 
-    async def should_continue(self, state: DialogState) -> Literal["no", "yes"]:
+    async def should_continue(
+        self, state: DialogState, writer: StreamWriter
+    ) -> Literal["no", "yes"]:
         num_messages = len(state.conversations)
         if num_messages >= self.settings.max_messages:
             logger.warning(
@@ -157,7 +171,9 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
 
         return "yes"
 
-    async def answer_question(self, state: DialogState) -> DialogConversation:
+    async def answer_question(
+        self, state: DialogState, writer: StreamWriter
+    ) -> DialogConversation:
         if state.question is None:
             raise ValueError("Question is not set")
 
@@ -165,20 +181,30 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
             query=state.question.content,
             topk=self.settings.topk,
         )
-        message = UserMessage(
-            content=prompts.ANSWER_BY_EXPERT.render(
-                user_query=state.question.content,
-                context=retrieval_results.context,
+
+        full_text = ""
+        async for event in self.chat_model.astream(
+            message=UserMessage(
+                content=prompts.ANSWER_BY_EXPERT.render(
+                    user_query=state.question.content,
+                    context=retrieval_results.context,
+                )
+            ),
+        ):
+            full_text += str(event.content)
+            writer(
+                StreamExpertEvent(
+                    data=ExpertData(
+                        section_id=state.section.id,
+                        token=str(event.content),
+                    )
+                )
             )
-        )
-        response = await self.chat_model.achat(
-            message=message,
-        )
 
         conversations = [
             UserMessage(content=state.question.content),
             AssistantMessage(
-                content=response.content,
+                content=full_text,
             ),
         ]
 
@@ -187,7 +213,7 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
             search_results=[retrieval_results],
         )
 
-    async def summarize(self, state: DialogState) -> DialogOutput:
+    async def summarize(self, state: DialogState, writer: StreamWriter) -> DialogOutput:
         # Prevent exceeding the max token limit
         loop = asyncio.get_event_loop()
         splitted_tokens = await loop.run_in_executor(
@@ -202,20 +228,39 @@ class DialogExpertGraph(BaseGraphNode[DialogInput, DialogOutput]):
         if len(splitted_tokens) == 0:
             raise ValueError("No tokens to summarize")
 
-        chat_response = await self.chat_model.achat(
+        writer(
+            StreamExpertEvent(
+                data=ExpertData(
+                    section_id=state.section.id,
+                    token="\n\n---\n\n### Summarization:\n",
+                )
+            )
+        )
+
+        full_text = ""
+        async for event in self.chat_model.astream(
             message=UserMessage(
                 content=prompts.TOPIC_SUMMARIZATION.render(
                     conversation=splitted_tokens[0],
                     section_title=state.section.title,
                 )
             ),
-        )
+        ):
+            full_text += str(event.content)
+            writer(
+                StreamExpertEvent(
+                    data=ExpertData(
+                        section_id=state.section.id,
+                        token=str(event.content),
+                    )
+                )
+            )
 
         return DialogOutput(
             summarizations=[
                 Summarization(
                     section_id=state.section.id,
-                    content=str(chat_response.content),
+                    content=full_text,
                 )
             ],
         )

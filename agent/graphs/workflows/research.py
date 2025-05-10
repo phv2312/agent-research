@@ -50,7 +50,7 @@ async def review_plan(
         raise ValueError("Outline is empty or None.")
 
     feedback = interrupt(
-        PLAN_FEEDBACK.render(outline=state.outline.as_str),
+        PLAN_FEEDBACK.render(outline=state.outline.content),
     )
     match feedback.lower():
         case "y":
@@ -106,5 +106,5 @@ async def gather_sections(
         logger.info("Section-%s is updated with the summarization.", section_idx[0])
 
     return ResearchOutput(
-        markdown=state.outline.as_str,
+        markdown=state.outline.content,
     )

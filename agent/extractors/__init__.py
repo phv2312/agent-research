@@ -1,5 +1,5 @@
 from .interface import IExtractor
-from .pdf import PDFExtractor
+from .impl.pdf import PDFExtractor
 
 
 __all__ = [

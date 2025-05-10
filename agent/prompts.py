@@ -61,7 +61,7 @@ ANSWER_BY_EXPERT = Template(
   The answer should be relevant to the user's query and provide additional insights or information that may be helpful.
   The answer should be comprehensive and informative, providing all necessary details to address the user's question.
   The answer should be well-structured, with a logical flow of information.
-  The answer should be clear and concise, the answer length should be in 100 - 600 words at maximum and answered by the same language used in user query.
+  The answer should be CLEAR AND CONCISE, THE ANSWER LENGTH SHOULD BE IN 200 WORDS AS MAXIMUM and answered by the same language used in user query.
   </Task>
   """
 )

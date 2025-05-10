@@ -1,5 +1,5 @@
 from .interface import IEmbeddingModel
-from .openai import OpenAIEmbeddingModel, SmallOpenAIEmbeddingModel
+from .impl.openai import OpenAIEmbeddingModel, SmallOpenAIEmbeddingModel
 
 
 __all__ = [

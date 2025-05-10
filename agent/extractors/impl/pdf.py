@@ -10,8 +10,8 @@ from langchain_text_splitters import TokenTextSplitter
 
 from agent.batched import Batched
 
-from ..storages.local import Storage
-from ..models.document import Chunk, Document, DocumentMetadata
+from ...storages.local import Storage
+from ...models.document import Chunk, Document, DocumentMetadata
 
 
 class PDFExtractorSettings(BaseSettings):

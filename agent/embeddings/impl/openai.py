@@ -4,7 +4,7 @@ from openai import AsyncAzureOpenAI
 
 from agent.batched import Batched
 
-from ..models.embeddings import SmallEmbedding, BaseEmbedding
+from ...models.embeddings import SmallEmbedding, BaseEmbedding
 
 
 EmbeddingT = TypeVar("EmbeddingT", bound=BaseEmbedding)

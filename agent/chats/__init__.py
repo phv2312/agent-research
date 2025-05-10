@@ -1,5 +1,5 @@
 from .interface import IChatModel
-from .openai import OpenAIChatModel
+from .impl.openai import OpenAIChatModel
 
 __all__ = [
     "IChatModel",
