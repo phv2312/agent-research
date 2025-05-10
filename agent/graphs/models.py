@@ -1,12 +1,7 @@
 from enum import StrEnum, auto
-from typing import Annotated, Literal, TypeVar
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
-
-
-InputT = TypeVar("InputT", bound=BaseModel)
-OutputT = TypeVar("OutputT", bound=BaseModel)
-StateT = TypeVar("StateT", bound=BaseModel)
 
 
 class StreamEvent(StrEnum):

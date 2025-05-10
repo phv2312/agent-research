@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Generic, TypeVar, cast
+from typing import cast
 
 from openai import AsyncAzureOpenAI
 from openai.types.chat import ChatCompletionMessageParam
@@ -9,10 +9,7 @@ from agent.models.messages import AssistantMessage, SystemMessage, UserMessage
 from .exc import ParsedResultError
 
 
-ModelOutT = TypeVar("ModelOutT", bound=BaseModel)
-
-
-class BaseProgram(Generic[ModelOutT]):
+class BaseProgram[ModelOutT: BaseModel]:
     ModelOutCls: type[BaseModel]
 
     def __init__(

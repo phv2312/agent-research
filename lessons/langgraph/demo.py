@@ -20,47 +20,47 @@ from agent.programs.base import BaseProgram
 
 FEEDBACK_TEMPLATE = Template(
     """
-Please review the generated outline and provide feedback.
-{{outline}}\n
-Press 'Y' to accept, or input feedbacks.
-"""
+    Please review the generated outline and provide feedback.
+    {{outline}}\n
+    Press 'Y' to accept, or input feedbacks.
+    """
 )
 
 OUTLINE_PLANNING = Template(
     """
-You are the story topic generator.
+    You are the story topic generator.
 
-<Feedback from user>
-{{feedbacks}}
-</Feedback from user>
+    <Feedback from user>
+    {{feedbacks}}
+    </Feedback from user>
 
-<Task>
-Randomly generate {{num_topics}} topics to form story later. Please follow the feedback from user if any.
-The topic content should be string, consise and clear.
-</Task>
+    <Task>
+    Randomly generate {{num_topics}} topics to form story later. Please follow the feedback from user if any.
+    The topic content should be string, consise and clear.
+    </Task>
 
-"""
+    """
 )
 
 STORY_WRITER = Template(
     """
-You are the story writer.
+    You are the story writer.
 
-<Topic>
-{{topic}}
-</Topic>
+    <Topic>
+    {{topic}}
+    </Topic>
 
-<Task>
-Write a story about the given topic, with requirements:
+    <Task>
+    Write a story about the given topic, with requirements:
 
-- The story content should be funny, interesting and engaging.
-- IMPORTANT: the story content should be related to the topic.
-- The story content length should be up to 300 words as a maximum.
-- Output should be in the markdown format. With ### as the topic of the story.
+    - The story content should be funny, interesting and engaging.
+    - IMPORTANT: the story content should be related to the topic.
+    - The story content length should be up to 300 words as a maximum.
+    - Output should be in the markdown format. With ### as the topic of the story.
 
-</Task>
+    </Task>
 
-"""
+    """
 )
 
 NUM_TOPICS = 1

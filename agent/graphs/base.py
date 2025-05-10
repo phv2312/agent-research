@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Generic, cast
+from typing import cast
 from langgraph.graph.graph import CompiledGraph
-from .models import InputT, OutputT
+from pydantic import BaseModel
 
 
-class BaseGraphNode(ABC, Generic[InputT, OutputT]):
+class BaseGraphNode[InputT: BaseModel, OutputT: BaseModel](ABC):
     InputCls: type[InputT]
     OutputCls: type[OutputT]
 

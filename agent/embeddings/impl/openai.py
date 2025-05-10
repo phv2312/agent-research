@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, Generic, TypeVar
+from typing import Any
 from openai import AsyncAzureOpenAI
 
 from agent.batched import Batched
@@ -7,10 +7,7 @@ from agent.batched import Batched
 from ...models.embeddings import SmallEmbedding, BaseEmbedding
 
 
-EmbeddingT = TypeVar("EmbeddingT", bound=BaseEmbedding)
-
-
-class OpenAIEmbeddingModel(Generic[EmbeddingT]):
+class OpenAIEmbeddingModel[EmbeddingT: BaseEmbedding]:
     EmbeddingCls: type[EmbeddingT]
 
     def __init__(
