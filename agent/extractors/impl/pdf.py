@@ -4,63 +4,40 @@ from pathlib import Path
 from typing import Any
 
 import pymupdf
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from langchain_text_splitters import TokenTextSplitter
+from pydantic import BaseModel
 
 from agent.batched import Batched
+from agent.storages.local import Storage
+from agent.text_splitters import (
+    ITextSplitter,
+    TextSplitterArguments,
+)
+from agent.models.document import Chunk, Document, DocumentMetadata
 
-from ...storages.local import Storage
-from ...models.document import Chunk, Document, DocumentMetadata
 
-
-class PDFExtractorSettings(BaseSettings):
-    model_config = SettingsConfigDict(case_sensitive=True)
-    chunk_size: int = Field(default=1024, alias="pdf_extractor_chunk_size")
-    chunk_overlap: int = Field(default=256, alias="pdf_extractor_chunk_overlap")
-    encoding_model_name: str = Field(
-        default="gpt-4o", alias="pdf_extractor_encoding_model_name"
+class PDFExtractorSettings(BaseModel):
+    text_splitter_arguments: TextSplitterArguments = TextSplitterArguments(
+        chunk_size=1024,
+        chunk_overlap=256,
+        encoding_model_name="gpt-4o",
     )
-
-    number_executor_split_tokens: int = Field(
-        default=2, alias="pdf_extractor_number_executor_split_tokens"
-    )
-    batch_size: int = Field(default=2, alias="pdf_extractor_batch_size")
+    number_executor_split_tokens: int = 2
+    batch_size: int = 2
 
 
 class PDFExtractor:
     def __init__(
         self,
         storage: Storage,
+        text_splitter: ITextSplitter,
         settings: PDFExtractorSettings | None = None,
         executor_split_tokens: Executor | None = None,
     ):
         self.storage = storage
+        self.text_splitter = text_splitter
         self.settings = settings or PDFExtractorSettings()
         self.executor_split_tokens = executor_split_tokens or ProcessPoolExecutor(
             max_workers=self.settings.number_executor_split_tokens
-        )
-
-    @staticmethod
-    def split_tokens(
-        encoding_model_name: str, chunk_size: int, chunk_overlap: int, text: str
-    ) -> list[str]:
-        return TokenTextSplitter(
-            model_name=encoding_model_name,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-        ).split_text(text)
-
-    async def asplit_tokens(self, text: str) -> list[str]:
-        loop = asyncio.get_event_loop()
-
-        return await loop.run_in_executor(
-            self.executor_split_tokens,
-            self.split_tokens,
-            self.settings.encoding_model_name,
-            self.settings.chunk_size,
-            self.settings.chunk_overlap,
-            text,
         )
 
     async def aextract(self, filepath: Path, *_: Any, **__: Any) -> Document:
@@ -80,10 +57,14 @@ class PDFExtractor:
         for batched_pages_content in Batched.iter(
             pages_content, batch_size=self.settings.batch_size
         ):
+            # <batch-size> pages at a time
             splitted_texts_list.extend(
                 await asyncio.gather(
                     *[
-                        self.asplit_tokens(page_content)
+                        self.text_splitter.asplit_text(
+                            page_content,
+                            arguments=self.settings.text_splitter_arguments,
+                        )
                         for page_content in batched_pages_content
                     ]
                 )

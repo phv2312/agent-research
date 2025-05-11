@@ -3,22 +3,20 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from langchain_text_splitters import TokenTextSplitter
 from pydantic import BaseModel
 
+from agent.text_splitters.interface import TextSplitterArguments
 
-class SplitterSettings(BaseModel):
-    chunk_size: int = 1024
-    chunk_overlap: int = 256
-    encoding_model_name: str = "gpt-4o"
 
+class LangchainSplitterSettings(BaseModel):
     number_executor_split_tokens: int = 2
 
 
 class LangchainTextSplitter:
     def __init__(
         self,
-        settings: SplitterSettings | None = None,
+        settings: LangchainSplitterSettings | None = None,
         executor_split_tokens: Executor | None = None,
     ):
-        self.settings = settings or SplitterSettings()
+        self.settings = settings or LangchainSplitterSettings()
         self.executor_split_tokens = executor_split_tokens or ProcessPoolExecutor(
             max_workers=self.settings.number_executor_split_tokens
         )
@@ -36,14 +34,19 @@ class LangchainTextSplitter:
             chunk_overlap=chunk_overlap,
         ).split_text(text)
 
-    async def asplit_text(self, text: str) -> list[str]:
+    async def asplit_text(
+        self,
+        text: str,
+        arguments: TextSplitterArguments | None = None,
+    ) -> list[str]:
+        arguments = arguments or TextSplitterArguments()
         loop = asyncio.get_event_loop()
 
         return await loop.run_in_executor(
             self.executor_split_tokens,
             self._split_text,
             text,
-            self.settings.encoding_model_name,
-            self.settings.chunk_size,
-            self.settings.chunk_overlap,
+            arguments.encoding_model_name,
+            arguments.chunk_size,
+            arguments.chunk_overlap,
         )

@@ -1,12 +1,12 @@
 import asyncio
-from concurrent.futures import Executor, ThreadPoolExecutor
 import logging
+from concurrent.futures import Executor, ThreadPoolExecutor
 from typing import Any, Literal, TypedDict
 from pydantic import BaseModel
 from tavily import TavilyClient
-import tiktoken
 
 from agent.models.document import ScoredChunk, ScoredChunks, Chunk, WebsearchMetdata
+from agent.text_splitters import ITextSplitter, TextSplitterArguments
 
 logger = logging.getLogger(__name__)
 
@@ -27,26 +27,27 @@ class TavilySettings(BaseModel):
     chunks_per_source: int = 3
     search_depth: Literal["advanced"] = "advanced"
     timerange: Literal["day", "week", "month", "year"] = "month"
-    encoding_model_name: str = "gpt-4o"
-    token_limit: int = 8000
+
+    splitter_arguments: TextSplitterArguments = TextSplitterArguments(
+        chunk_size=8000,
+        chunk_overlap=0,
+        encoding_model_name="gpt-4o",
+    )
 
 
 class TavilyWebSearch:
     def __init__(
         self,
         api_key: str,
+        splitter: ITextSplitter,
         executor_search: Executor | None = None,
         settings: TavilySettings | None = None,
     ) -> None:
         self.api_key = api_key
         self.client = TavilyClient(api_key)
-        # TODO: ProcessPoolExecutor
+        self.splitter = splitter
         self.executor_search = executor_search or ThreadPoolExecutor()
         self.settings = settings or TavilySettings()
-        self.encoding = tiktoken.encoding_for_model(self.settings.encoding_model_name)
-
-    def count_num_tokens(self, text: str) -> int:
-        return len(self.encoding.encode(text))
 
     def search(
         self,
@@ -71,15 +72,6 @@ class TavilyWebSearch:
                 logger.warning("Result %s has no raw content", result["url"])
                 continue
 
-            num_tokens = self.count_num_tokens(result["raw_content"])
-            if num_tokens > self.settings.token_limit:
-                logger.warning(
-                    "Result %s exceeds token limit %d: %d tokens",
-                    result["url"],
-                    self.settings.token_limit,
-                    num_tokens,
-                )
-                continue
             scored_chunks.append(
                 ScoredChunk(
                     chunk=Chunk(
@@ -102,6 +94,10 @@ class TavilyWebSearch:
         **kwargs: Any,
     ) -> ScoredChunks:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
+        scored_chunks = await loop.run_in_executor(
             self.executor_search, self.search, query, topk
+        )
+        return await scored_chunks.filter_by_tokens(
+            self.splitter,
+            arguments=self.settings.splitter_arguments,
         )

@@ -1,8 +1,11 @@
+import asyncio
 from enum import StrEnum, auto
 from typing import Annotated, Literal, Self
 from uuid import UUID, uuid4
 from openai import BaseModel
 from pydantic import BeforeValidator, ConfigDict, Field, RootModel
+
+from agent.text_splitters import ITextSplitter, TextSplitterArguments
 
 
 class Source(StrEnum):
@@ -55,12 +58,32 @@ class ScoredChunks(RootModel[list[ScoredChunk]]):
     def __len__(self) -> int:
         return len(self.root)
 
+    async def filter_by_tokens(
+        self,
+        text_splitter: ITextSplitter,
+        arguments: TextSplitterArguments | None = None,
+    ) -> Self:
+        stripped_texts_list = await asyncio.gather(
+            *[
+                text_splitter.asplit_text(
+                    scored_chunk.text,
+                    arguments=arguments,
+                )
+                for scored_chunk in self.root
+            ]
+        )
+
+        for scored_chunk, stripped_texts in zip(self.root, stripped_texts_list):
+            scored_chunk.chunk.text = stripped_texts[0]
+
+        return self
+
     def sort(self, reverse: bool = True) -> Self:
         self.root = sorted(self.root, key=lambda x: x.score, reverse=reverse)
         return self
 
-    def limit(self, top_k: int) -> Self:
-        self.root = self.root[:top_k]
+    def limit(self, topk: int) -> Self:
+        self.root = self.root[:topk]
         return self
 
     @property
