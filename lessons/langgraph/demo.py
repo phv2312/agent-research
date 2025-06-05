@@ -108,7 +108,7 @@ def get_outline_program() -> OutlineProgram:
 
 @lru_cache(maxsize=1)
 def get_chat_model() -> OpenAIChatModel:
-    return Container().chat_provider
+    return Container().chat_provider.get("azure_openai")
 
 
 class StateInput(BaseModel):
@@ -267,7 +267,7 @@ async def main():
     async for event in graph.astream(
         StateInput(allow_user_feedback=False),
         config=run_config.model_dump(),
-        stream_mode=["updates"],
+        stream_mode=["updates", "custom"],
     ):
         print(event)
 
