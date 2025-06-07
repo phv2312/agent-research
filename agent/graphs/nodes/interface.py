@@ -10,7 +10,7 @@ class INode[
 ](Protocol):
     async def process(
         self,
-        node_input: NodeInputT,
+        state: NodeInputT,
         *_: Any,
         **__: Any,
     ) -> NodeOutputT: ...
