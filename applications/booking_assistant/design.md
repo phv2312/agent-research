@@ -1,6 +1,12 @@
 # Architecture
 
-There are two workflows: **Chat** and **Indexing**.
+Overall architecture is illustrated below:
+
+![application](./assets/application.png)
+
+In this document I will focus on AI-related services first.
+
+There are two AI workflows: **Chat** and **Indexing**.
 
 - **Chat**: Routes user queries to the corresponding services (FAQ or Ticket Operation).
 
@@ -34,6 +40,8 @@ To handle multimodal input, create an additional node called `multimodal_process
 ## Indexing Workflow
 
 ### Architecture
+
+Indexing is CPU-bound tasks, so it's better handling by Message Queue.
 
 The indexing workflow is illustrated below:
 
