@@ -56,13 +56,6 @@ class MilvusConfig(BaseModel):
         )
 
     @property
-    def fields(self) -> list[str]:
-        return [
-            self.fieldname_id,
-            self.fieldname_text,
-        ]
-
-    @property
     def id(self) -> FieldSchema:
         return FieldSchema(
             name=self.fieldname_id,
@@ -191,7 +184,7 @@ class Milvus:
             data=[query.embedding],
             limit=top_k,
             anns_field=self.config.fieldname_ann_embedding,
-            output_fields=self.config.fields,
+            output_fields=["*"],
             filter=filter_expr,
         )
 

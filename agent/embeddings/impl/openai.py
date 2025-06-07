@@ -4,7 +4,7 @@ from openai import AsyncAzureOpenAI
 
 from agent.batched import Batched
 
-from ...models.embeddings import SmallEmbedding, BaseEmbedding
+from agent.models.embeddings import SmallEmbedding, BaseEmbedding
 
 
 class OpenAIEmbeddingModel[EmbeddingT: BaseEmbedding]:

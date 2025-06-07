@@ -5,6 +5,10 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from pydantic import BaseModel, BeforeValidator, Discriminator, Field, RootModel
 from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
 
 
 def encode_image_base64(imagepath: Path) -> str:
@@ -78,6 +82,7 @@ class UserMessage(BaseMessage):
 
 class AssistantMessage(BaseMessage):
     role: Literal[MessageRole.assistant] = MessageRole.assistant
+    tool_calls: list[ChatCompletionMessageToolCall | ChoiceDeltaToolCall] | None = None
 
 
 class SystemMessage(BaseMessage):
@@ -108,7 +113,7 @@ class Messages(RootModel[list[Message]]):
         ]
 
         if message:
-            messages = [*messages, message]
+            messages = [message, *messages]
 
         if system_message:
             messages = [

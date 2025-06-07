@@ -95,7 +95,7 @@ class ScoredChunks(RootModel[list[ScoredChunk]]):
         for scored_chunk in self.root:
             if scored_chunk.chunk.text in traveled:
                 continue
-            contexts.append(f"Reference [{idx}]\n{scored_chunk.chunk.text}")
+            contexts.append(f"Reference【28†[{idx}】\n{scored_chunk.chunk.text}")
             traveled[scored_chunk.chunk.text] = True
             idx += 1
         return "\n\n".join(contexts)

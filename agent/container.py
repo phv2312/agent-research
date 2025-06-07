@@ -5,9 +5,7 @@ from typing import Any, Callable, Literal
 
 from agent.programs import (
     IProgram,
-    SearchQueriesProgram,
-    DialogQuestionProgram,
-    OutlineReportProgram,
+    BookingOperationProgram,
 )
 from agent.text_splitters import (
     ITextSplitter,
@@ -17,7 +15,6 @@ from agent.searches import (
     TavilyWebSearch,
     IWebSearch,
 )
-from agent.tools.hybrid.core import HybridSearch
 from agent.chats import IChatModel, OpenAIChatModel
 from agent.embeddings import IEmbeddingModel, SmallOpenAIEmbeddingModel
 from agent.extractors import (
@@ -181,7 +178,7 @@ class WebSearchProvider(
 
 class ProgramProvider(
     BaseProvider[
-        Literal["search_queries", "outline_report", "dialog_question"],
+        Literal["booking_operation"],
         IProgram[Any],
     ]
 ):
@@ -192,36 +189,16 @@ class ProgramProvider(
     def mp_name_init(
         self,
     ) -> dict[
-        Literal["search_queries", "outline_report", "dialog_question"],
+        Literal["booking_operation"],
         Callable[[], IProgram[Any]],
     ]:
         return {
-            "search_queries": self.init_search_queries_program,
-            "outline_report": self.init_outline_report_program,
-            "dialog_question": self.init_dialog_question_program,
+            "booking_operation": self.init_booking_operation_program,
         }
 
     @lru_cache(maxsize=1)
-    def init_search_queries_program(self) -> SearchQueriesProgram:
-        return SearchQueriesProgram(
-            api_key=self.env.openai_api_key,
-            api_version=self.env.openai_api_version,
-            azure_endpoint=self.env.openai_azure_endpoint,
-            deployment_name=self.env.openai_chat_deployment_name,
-        )
-
-    @lru_cache(maxsize=1)
-    def init_outline_report_program(self) -> OutlineReportProgram:
-        return OutlineReportProgram(
-            api_key=self.env.openai_api_key,
-            api_version=self.env.openai_api_version,
-            azure_endpoint=self.env.openai_azure_endpoint,
-            deployment_name=self.env.openai_chat_deployment_name,
-        )
-
-    @lru_cache(maxsize=1)
-    def init_dialog_question_program(self) -> DialogQuestionProgram:
-        return DialogQuestionProgram(
+    def init_booking_operation_program(self) -> BookingOperationProgram:
+        return BookingOperationProgram(
             api_key=self.env.openai_api_key,
             api_version=self.env.openai_api_version,
             azure_endpoint=self.env.openai_azure_endpoint,
@@ -235,41 +212,33 @@ class Container:
         self.storage = storage or Storage(imagedir=Path("images"))
 
     @cached_property
-    def chat_provider(self) -> ChatProvider:
+    def chats(self) -> ChatProvider:
         return ChatProvider(self.env)
 
     @cached_property
-    def embedding_provider(self) -> EmbeddingProvider:
+    def embeddings(self) -> EmbeddingProvider:
         return EmbeddingProvider(self.env)
 
     @cached_property
-    def extractor_provider(self) -> ExtractorProvider:
+    def extractors(self) -> ExtractorProvider:
         return ExtractorProvider(
             self.env,
             self.storage,
-            self.text_splitter_provider,
+            self.text_splitters,
         )
 
     @cached_property
-    def vectordb_provider(self) -> VectorDBProvider:
+    def vectordbs(self) -> VectorDBProvider:
         return VectorDBProvider(self.env)
 
     @cached_property
-    def websearch_provider(self) -> WebSearchProvider:
-        return WebSearchProvider(self.env, self.text_splitter_provider)
+    def websearches(self) -> WebSearchProvider:
+        return WebSearchProvider(self.env, self.text_splitters)
 
     @cached_property
-    def text_splitter_provider(self) -> TextSplitterProvider:
+    def text_splitters(self) -> TextSplitterProvider:
         return TextSplitterProvider(self.env)
 
     @cached_property
-    def hybrid_search(self) -> HybridSearch:
-        return HybridSearch(
-            websearch=self.websearch_provider.get("tavily"),
-            milvus=self.vectordb_provider.get("milvus"),
-            embedding_model=self.embedding_provider.get("azure_openai"),
-        )
-
-    @cached_property
-    def program_provider(self) -> ProgramProvider:
+    def programs(self) -> ProgramProvider:
         return ProgramProvider(self.env)

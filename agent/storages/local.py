@@ -17,6 +17,11 @@ class Storage:
 
     def save_image(self, image: Image, relpath: str) -> Path:
         imagepath = self.imagedir / relpath
+        imagepath.parent.mkdir(parents=True, exist_ok=True)
+
+        if imagepath.exists():
+            imagepath.unlink()
+
         image.save(imagepath)
         return imagepath
 
