@@ -1,10 +1,10 @@
-## Pre-commit & Continous Integration
+## Pre-commit & Continuous Integration
 
-There're two tools users need to satisfy before committing to the repository.
+There are two tools that contributors must satisfy before committing to the repository:
 
 | Tool | Purpose | Reason |
 |:-----|:--------|:-------|
-| mypy | Static type checking |  - Use as an substitute for unit tests during early-stage of the project <br> - Improve code quality and confidence in code correctness from the start.
-| ruff | Linking & Coding style checking | - Extremely fast compared to other linters. <br> - Support a wide range of linting rules.
+| mypy | Static type checking | - Serves as a substitute for unit tests during the early stages of the project. <br> - Improves code quality and increases confidence in code correctness from the start. |
+| ruff | Linting & code style checking | - Extremely fast compared to other linters. <br> - Supports a wide range of linting rules. |
 
-The checking will be applied for each commits in *main* branch or any Pull Requests to *main*. Supported by github actions.
+These checks are enforced on every commit to the *main* branch or any pull request targeting *main*, and are supported by GitHub Actions.

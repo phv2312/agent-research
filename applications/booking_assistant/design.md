@@ -1,32 +1,33 @@
 # Architecture
 
-There're two workflows, chat & indexing:
+There are two workflows: **Chat** and **Indexing**.
 
-- **Chat**: route query from user to the corresponding services (FAQ or Ticket Operation).
+- **Chat**: Routes user queries to the corresponding services (FAQ or Ticket Operation).
 
-- **Indexing**: input internal policy, convert document(s) to chunks and insert to database for later FAQ usage.
-
+- **Indexing**: Takes internal policies or documents, converts them into chunks, and inserts them into the database for later FAQ usage.
 
 ## Chat Workflow
 
 ### Architecture
 
-The overall graph is illustrated:
+The overall graph is illustrated below:
 
 ![chat-graph](./assets/graph.png)
 
-The reponsibility of each component:
+**Responsibilities of each component:**
 
-- **Coordinator**: route the user request to the corresponding services, be able of handling small talks/ greeting.
+- **Coordinator**: Routes user requests to the appropriate services and handles small talk/greetings.
 
-- **FAQ**: inheritted by RAG system, which can search for the internal similar documents inside databse, then answer query from user.
+- **FAQ**: Powered by a RAG system, it searches for similar internal documents in the database and answers user queries.
 
-- **Operation**: to be honest, it should be named as *after-service* operation, be responsible for parsing the user query to the corresponding sql statements.
+- **Operation**: Technically should be named *after-service operation*. Responsible for parsing user queries into corresponding SQL statements.
 
-- **Operation Feedback**: in case client missing any information makes **Operation** node fail to parse. This node will gather more information from user by asking follow-up query. Inherrited by the Human In The Loop (HITL) system.
+- **Operation Feedback**: If the user query lacks necessary information, causing the **Operation** node to fail, this component gathers more information through follow-up questions. It is inspired by the Human-In-The-Loop (HITL) system.
 
-### How to support
-The current workflow is mostly for text channel. In case of multimodal input, let create another node, called as `multimodal_processor` to help convert image/voice to text beforehand.
+### How to Support multimodal query
+
+The current workflow mainly supports text-based interactions.
+To handle multimodal input, create an additional node called `multimodal_processor`, which converts images or voice to text before further processing.
 
 ![chat-graph-multimodal](./assets/multimodal-graph.png)
 
@@ -34,25 +35,27 @@ The current workflow is mostly for text channel. In case of multimodal input, le
 
 ### Architecture
 
-The indexing workflow can be illustrated:
+The indexing workflow is illustrated below:
 
 ![indexing-workflow](./assets/indexing.png)
 
-The reponsibility of each component:
+**Responsibilities of each component:**
 
-- **Extractor** & **Text Spiltter**: given unstructured document, convert to chunks with metadata.
-- **Embedding**: convert text to vector
-- **Insert-DB**: means insert to Database, currenly only milvus is supported.
+- **Extractor** & **Text Splitter**: Given an unstructured document, extract and convert it into chunks with metadata.
+
+- **Embedding**: Converts text into vector representations.
+
+- **Insert-DB**: Inserts vectors into the database. Currently, only Milvus is supported.
 
 ## Components
 
-| Component | Description | Implementations | Tech Stack & Reasoning |
-|:----------|:------------|:----------------|:-----------------------|
-| chats | Contains implementations of chat model interfaces and utilities for interacting with LLM chat models like ChatGPT | - OpenAI chat | - OpenAI is the leading provider of advanced LLMs like ChatGPT. |
-| embeddings | Houses embedding model implementations for transforming text into vector representations | - OpenAI embeddings | - Same reason with OpenAI Chat. |
-| extractors | Contains utilities for extracting information and data from various sources | - PDF Extractor | - Pymupdf: one of the leading frameworks in PDF parser.
-| graphs | Implements workflow graphs and node-based processing systems for AI agent operations | - Nodes & Graph for Booking assistant | - Langgraph because it supports many core features: orchestrating, streaming, async native support...  |
-| models | Contains Pydantic data models and schemas that define the structure of data used throughout the system | - Message, Stream event | - Pydantic: simply is the best. |
-| programs | Houses LLM programs that generate structured data using Pydantic models | - Booking operations | - OpenAI structured output parsing
-| storages | Contains storage implementations, possibly including vector database integrations | - Local storage<br>- Milvus | - Milvus is the leading vectorDB, support cluster for large scale, many indexes support and tutotirals, rapid feature development.
-| text_splitters | Implements text chunking and splitting utilities for processing large text documents | - Langchain text splitter | - langchain-core because langgraph will install them already.
+| Component      | Description                                                                 | Implementations                    | Tech Stack & Reasoning |
+|----------------|-----------------------------------------------------------------------------|------------------------------------|-------------------------|
+| chats          | Contains implementations of chat model interfaces and utilities for interacting with LLM chat models like ChatGPT | - OpenAI Chat                      | - OpenAI is a leading provider of advanced LLMs like ChatGPT. |
+| embeddings     | Implements embedding models for converting text into vector representations | - OpenAI Embeddings                | - Same reasoning as OpenAI Chat. |
+| extractors     | Utilities for extracting information and data from various sources           | - PDF Extractor                    | - PyMuPDF: one of the leading frameworks for PDF parsing. |
+| graphs         | Implements workflow graphs and node-based systems for AI agent operations   | - Nodes & Graph for Booking Assistant | - LangGraph: supports orchestration, streaming, and async natively. |
+| models         | Contains Pydantic models and schemas that define the structure of data       | - Message, Stream Event            | - Pydantic: simply the best for data validation. |
+| programs       | Contains LLM programs that generate structured outputs using Pydantic models | - Booking Operations               | - OpenAI's structured output parsing. |
+| storages       | Implements storage systems, including vector database integrations           | - Local Storage<br>- Milvus        | - Milvus: a leading vector DB, supports cluster deployment, multiple indexing methods, rapid development, and strong community/tutorials. |
+| text_splitters | Implements utilities to split large text documents into smaller chunks       | - LangChain Text Splitter          | - langchain-core is already included when using LangGraph. |
