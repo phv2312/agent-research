@@ -90,5 +90,4 @@ def get_graph():
 
 
 if __name__ == "__main__":
-    # asyncio.run(interactive_demo())
-    get_graph()
+    asyncio.run(interactive_demo())

@@ -122,6 +122,8 @@ class BookingAssistantGraph:
             graph_input = State(
                 query=UserMessage(content=query),
                 history=(history or []),
+                feedbacks=None,
+                booking_response=None,
             )
 
         async for mode, event in self.graph.astream(

@@ -21,3 +21,5 @@
 - Use of real samples and databases (such as PostgreSQL) instead of dummy ticket information.
 
 - Lack of monitoring and profiling.
+
+- Use a more powerful extractors which use deep learning such as docling, Azure Document Intelligence, ...

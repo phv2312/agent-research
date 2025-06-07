@@ -94,9 +94,6 @@ class CoordinatorNode(
         )
 
         async for message in message_generator:
-            if message.tool_calls is None:
-                writer(StreamChatData.from_message(str(message.content)))
-
             for tool_call in message.tool_calls or []:
                 if tool_call is None or tool_call.function is None:
                     continue
@@ -116,5 +113,8 @@ class CoordinatorNode(
                         raise ValueError(
                             f"Unknown tool call: {tool_call.function.name}",
                         )
+
+            if message.tool_calls is None:
+                writer(StreamChatData.from_message(str(message.content)))
 
         return Command(goto=Nodes.END)
