@@ -1,15 +1,13 @@
-from collections.abc import AsyncGenerator, Sequence
+from collections.abc import AsyncGenerator
 from typing import Any, Protocol
 
-from ..models.messages import SystemMessage, UserMessage, AssistantMessage
+from ..models.messages import AssistantMessage, Messages
 
 
 class IChatModel(Protocol):
     async def achat(
         self,
-        message: UserMessage | None = None,
-        system_message: SystemMessage | None = None,
-        history: Sequence[AssistantMessage | UserMessage] | None = None,
+        messages: Messages,
         *_: Any,
         **__: Any,
     ) -> AssistantMessage: ...
@@ -18,9 +16,7 @@ class IChatModel(Protocol):
     # https://github.com/python/mypy/issues/12662
     def astream(
         self,
-        message: UserMessage | None = None,
-        system_message: SystemMessage | None = None,
-        history: Sequence[AssistantMessage | UserMessage] | None = None,
+        messages: Messages,
         *_: Any,
         **__: Any,
     ) -> AsyncGenerator[AssistantMessage, None]: ...

@@ -2,7 +2,7 @@ import base64
 from collections.abc import Sequence
 from enum import StrEnum, auto
 from pathlib import Path
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Literal, cast
 from pydantic import BaseModel, BeforeValidator, Discriminator, Field, RootModel
 from openai.types.chat import ChatCompletionMessageParam
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
@@ -60,21 +60,6 @@ class BaseMessage(BaseModel):
     role: MessageRole
     content: str | Annotated[list[MessageContent], Field(min_length=1)]
 
-    def to_openai_message(self) -> dict[str, Any]:
-        match self.content:
-            case str():
-                return {
-                    "role": self.role.name.lower(),
-                    "content": self.content,
-                }
-            case list():
-                return {
-                    "role": self.role.name.lower(),
-                    "content": [content.model_dump() for content in self.content],
-                }
-            case _:
-                raise ValueError("Invalid content in message")
-
 
 class UserMessage(BaseMessage):
     role: Literal[MessageRole.user] = MessageRole.user
@@ -89,8 +74,14 @@ class SystemMessage(BaseMessage):
     role: Literal[MessageRole.system] = MessageRole.system
 
 
+class ToolResponseMessage(BaseModel):
+    role: Literal["tool"] = "tool"
+    tool_call_id: str
+    content: str
+
+
 Message = Annotated[
-    UserMessage | AssistantMessage | SystemMessage,
+    UserMessage | AssistantMessage | SystemMessage | ToolResponseMessage,
     Field(
         discriminator="role",
     ),
@@ -128,6 +119,5 @@ class Messages(RootModel[list[Message]]):
 
     def as_openai_list(self) -> list[ChatCompletionMessageParam]:
         return [
-            cast(ChatCompletionMessageParam, msg.to_openai_message())
-            for msg in self.as_list()
+            cast(ChatCompletionMessageParam, msg.model_dump()) for msg in self.as_list()
         ]

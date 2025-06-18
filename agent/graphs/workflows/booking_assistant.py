@@ -12,8 +12,12 @@ from langchain_core.runnables import RunnableConfig
 from agent.container import Container
 from agent.graphs.nodes.booking.coordinator import CoordinatorNode
 from agent.graphs.nodes.booking.faq import FAQNode
-from agent.graphs.nodes.booking.operation import OperationNode, OperationFeedbackNode
+
+# from agent.graphs.nodes.booking.operation import OperationNode, OperationFeedbackNode
+from agent.graphs.nodes.booking.operation_react import ReactOperationNode
 from agent.graphs.nodes.booking.models import Nodes, State
+from agent.graphs.prebuilt.react import ReactAgentWorkflow
+from agent.tools.interrupt import InterruptedTool
 from agent.models.booking import Tickets
 from agent.models.stream import (
     Interrupt,
@@ -60,17 +64,16 @@ class GraphDependencies:
         )
 
     @cached_property
-    def operation(self) -> OperationNode:
-        return OperationNode(
-            program=self.container.programs.get("booking_operation"),
-            prompt_template=self.booking_prompts.get("operation"),
-            # TODO: for demo purpose only
+    def operation(self) -> ReactOperationNode:
+        return ReactOperationNode(
+            react=ReactAgentWorkflow(
+                chat_model=self.container.chats.get("azure_openai"),
+                tools=[],
+                human_tools=[InterruptedTool()],
+            ),
+            prompt_template=self.booking_prompts.get("operation_react"),
             tickets=Tickets.from_json_file(self.samplepath),
         )
-
-    @cached_property
-    def operation_feedback(self) -> OperationFeedbackNode:
-        return OperationFeedbackNode()
 
 
 class BookingAssistantGraph:
@@ -87,7 +90,7 @@ class BookingAssistantGraph:
                 Nodes.OPERATION,
                 self.deps.operation.process,
             )
-            .add_node(Nodes.OPERATION_FEEDBACK, self.deps.operation_feedback.process)
+            # .add_node(Nodes.OPERATION_FEEDBACK, self.deps.operation_feedback.process)
             .set_entry_point(Nodes.COORDINATOR)
         )
 
@@ -126,11 +129,14 @@ class BookingAssistantGraph:
                 booking_response=None,
             )
 
-        async for mode, event in self.graph.astream(
+        async for data in self.graph.astream(
             graph_input,
             config=cast(RunnableConfig, run_config),
             stream_mode=["custom", "updates"],
+            # subgraphs=True,
         ):
+            # print(data)
+            mode, event = data
             match mode:
                 case "custom":
                     if isinstance(event, StreamChatData | StreamChunksData):

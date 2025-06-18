@@ -8,7 +8,7 @@ from langgraph.types import Command, StreamWriter
 from agent.chats.interface import IChatModel
 from agent.embeddings.interface import IEmbeddingModel
 from agent.models.document import ScoredChunks
-from agent.models.messages import UserMessage
+from agent.models.messages import Messages, UserMessage
 from agent.models.stream import StreamChatData, StreamChunksData
 from agent.storages.vectordb.milvus import Milvus
 from .base import BaseNode
@@ -57,7 +57,7 @@ class FAQNode(BaseNode[State, Command[Literal[Nodes.END]]]):
         )
 
         async for message in self.chat_model.astream(
-            UserMessage(content=prompt_content),
+            Messages([UserMessage(content=prompt_content)]),
             temperature=self.settings.temperature,
             history=state.history,
         ):

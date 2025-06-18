@@ -6,7 +6,7 @@ from jinja2 import Template
 from langgraph.types import Command, StreamWriter
 
 from agent.chats.interface import IChatModel
-from agent.models.messages import UserMessage
+from agent.models.messages import Messages, UserMessage
 from agent.models.stream import StreamChatData
 
 from .base import BaseNode
@@ -85,7 +85,7 @@ class CoordinatorNode(
         )
 
         message_generator = self.chat_model.astream(
-            UserMessage(content=prompt_content),
+            Messages([UserMessage(content=prompt_content)]),
             temperature=0.0,
             tools=[
                 ToolFactory.faq(),

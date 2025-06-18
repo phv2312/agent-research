@@ -45,7 +45,7 @@ class Jinja2Prompts[TemplateT: str]:
 
 
 class BookingJinja2Prompts(
-    Jinja2Prompts[Literal["coordinator", "faq", "operation"]]
+    Jinja2Prompts[Literal["coordinator", "faq", "operation", "operation_react"]]
 ): ...
 
 

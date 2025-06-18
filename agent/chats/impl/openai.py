@@ -4,7 +4,7 @@ from openai import AsyncAzureOpenAI
 from openai.types.chat.chat_completion_tool_param import (
     ChatCompletionToolParam,
 )
-from agent.models.messages import UserMessage, SystemMessage, AssistantMessage, Messages
+from agent.models.messages import AssistantMessage, Messages
 
 
 class OpenAIChatModel:
@@ -24,21 +24,13 @@ class OpenAIChatModel:
 
     async def astream(
         self,
-        message: UserMessage | None = None,
-        system_message: SystemMessage | None = None,
-        history: Sequence[AssistantMessage | UserMessage] | None = None,
+        messages: Messages,
         temperature: float = 0.1,
         max_completion_tokens: int | None = None,
         *_: Any,
         tools: Sequence[ChatCompletionToolParam] | None = None,
         **__: Any,
     ) -> AsyncGenerator[AssistantMessage, None]:
-        messages = Messages.from_conversation(
-            message=message,
-            system_message=system_message,
-            history=history,
-        ).as_openai_list()
-
         kwargs: dict[str, Any] = {}
         if tools:
             kwargs["tools"] = tools
@@ -48,7 +40,7 @@ class OpenAIChatModel:
 
         async for response in await self.openai.chat.completions.create(
             model=self.deployment_name,
-            messages=messages,
+            messages=messages.as_openai_list(),
             stream=True,
             temperature=temperature,
             **kwargs,
@@ -65,28 +57,33 @@ class OpenAIChatModel:
 
     async def achat(
         self,
-        message: UserMessage | None = None,
-        system_message: SystemMessage | None = None,
-        history: Sequence[AssistantMessage | UserMessage] | None = None,
+        messages: Messages,
         temperature: float = 0.1,
         max_completion_tokens: int | None = None,
         *_: Any,
+        tools: Sequence[ChatCompletionToolParam] | None = None,
         **__: Any,
     ) -> AssistantMessage:
-        messages = Messages.from_conversation(
-            message=message,
-            system_message=system_message,
-            history=history,
-        ).as_openai_list()
+        kwargs: dict[str, Any] = {}
+        if tools:
+            kwargs["tools"] = tools
+
+        if max_completion_tokens:
+            kwargs["max_completion_tokens"] = max_completion_tokens
 
         response = await self.openai.chat.completions.create(
             model=self.deployment_name,
-            messages=messages,
+            messages=messages.as_openai_list(),
             temperature=temperature,
-            max_completion_tokens=max_completion_tokens,
+            **kwargs,
         )
 
         if len(response.choices) == 0:
             raise ValueError("No response from OpenAI")
 
-        return AssistantMessage(content=response.choices[0].message.content or "")
+        message = response.choices[0].message
+
+        return AssistantMessage(
+            content=message.content or "",
+            tool_calls=message.tool_calls or [],
+        )
