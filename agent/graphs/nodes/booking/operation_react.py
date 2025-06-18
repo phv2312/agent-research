@@ -41,7 +41,11 @@ class ReactOperationNode(BaseNode[State, Command[Literal[Nodes.END]]]):
             )
         )
         ai_message = response["messages"][-1]
-        writer(StreamChatData.from_message(str(ai_message.content)))
+        writer(
+            StreamChatData.from_message(
+                f"[Confirmation - TODO: route to SQL agent] {str(ai_message.content)}"
+            )
+        )
         return Command(
             goto=Nodes.END,
         )
