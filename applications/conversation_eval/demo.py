@@ -34,14 +34,10 @@ call_parser = CallParser()
 ingestor = ConstantIngestor()
 
 topk = 3
+batch_size = 5
 prompt_path = "agent/prompts/conversation_eval/groundedness.md"
 with open(prompt_path, "r") as file:
     prompt_template = Template(file.read())
-
-
-class EvaluationResponseWithContent(EvaluationResponse):
-    content: str
-    retrieved_rules: list[str] = []
 
 
 class EvaluationError(BaseModel):
@@ -136,7 +132,7 @@ async def index_file_wrapper(file: File):
 
 async def analyze_conversation(
     conversation_text: str, conversation_type: ConversationType, placeholder_json: str
-) -> list[EvaluationResponseWithContent | EvaluationError]:
+) -> list[EvaluationResponse | EvaluationError]:
     temp_file = Path("/tmp/temp_conversation.txt")
     async with aiofiles.open(temp_file, "w", encoding="utf-8") as file:
         await file.write(conversation_text)
@@ -167,16 +163,17 @@ async def analyze_conversation(
                 logger.info("Parsing call conversation")
                 mp_messages = await call_parser.parse(temp_file)
 
-        responses: list[EvaluationResponseWithContent] = []
-
-        for ai_contents in Batched.iter(mp_messages["assistant"], batch_size=5):
+        responses: list[EvaluationResponse] = []
+        counter = 1
+        num_ai_messages = len(mp_messages["assistant"])
+        for ai_contents in Batched.iter(
+            mp_messages["assistant"], batch_size=batch_size
+        ):
             embeddings = await embedding_model.aembedding(ai_contents)
-            gr.Info("Embeded")
 
             retrieved_chunks_list = await asyncio.gather(
                 *[milvus.search(embedding, top_k=topk) for embedding in embeddings]
             )
-            gr.Info("Retrieved chunks")
 
             tasks: list[asyncio.Task[EvaluationResponse]] = []
             for ai_content, retrieved_chunks in zip(ai_contents, retrieved_chunks_list):
@@ -199,29 +196,13 @@ async def analyze_conversation(
                         message=UserMessage(content=prompt_content)
                     )
                 )
-            evaluations = await asyncio.gather(*tasks)
-            gr.Info("Evaluated")
-
-            for ai_content, evaluation, retrieved_chunks in zip(
-                ai_contents, evaluations, retrieved_chunks_list
-            ):
-                constants = [
-                    (
-                        scored_chunk.chunk.metadata.rendered_page_path,
-                        scored_chunk.chunk.text,
-                    )
-                    for scored_chunk in retrieved_chunks.root
-                ]
-
-                responses.append(
-                    EvaluationResponseWithContent.model_validate(
-                        {
-                            **evaluation.model_dump(),
-                            "content": ai_content,
-                            "retrieved_rules": [constant[0] for constant in constants],
-                        }
-                    )
-                )
+            responses.extend(await asyncio.gather(*tasks))
+            gr.Info(
+                "[%.3d/%.3d]Evaluated messages"
+                % (counter * batch_size, num_ai_messages),
+                duration=2,
+            )
+            counter += 1
 
         return responses
     except Exception as e:
@@ -252,7 +233,7 @@ async def analyze_conversation_wrapper(
             case EvaluationError():
                 error_msg = results[0].error
                 return f"❌ Error: {error_msg}", None
-            case EvaluationResponseWithContent():
+            case EvaluationResponse():
                 df = pd.DataFrame([result.model_dump() for result in results])
                 return f"✅ Analyzed {len(results)} assistant messages", df
 

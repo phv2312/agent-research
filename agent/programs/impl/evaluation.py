@@ -1,18 +1,19 @@
+from typing import Literal
 from pydantic import BaseModel, Field
 from agent.programs.base import BaseProgram
 
 
 class EvaluationResponse(BaseModel):
-    score: float = Field(
-        default=0.0,
-        description="Score adherence from 0.0 (completely non-compliant) to 1.0 (perfectly compliant)",
+    score: Literal["high", "medium", "low"] = Field(
+        default="low",
+        description="Score adherence using one of three categories: high, medium, low",
     )
     reasoning: str = Field(
         default="", description="Short & clear reasoning for the score"
     )
-    rules: list[str] = Field(
-        default_factory=list,
-        description="Identify which rules are relevant to the evaluation",
+    rule: str = Field(
+        default="",
+        description="Identify the most relevant rule name",
     )
 
 
