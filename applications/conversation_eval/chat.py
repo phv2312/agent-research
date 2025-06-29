@@ -47,6 +47,7 @@ class CallParser(BaseParser):
             "user": [],
         }
 
+        last_key: Literal["", "assistant", "user"] = ""
         for content in contents:
             splited_contents = content.split(self.SEPERATOR, maxsplit=1)
 
@@ -63,7 +64,11 @@ class CallParser(BaseParser):
                 logger.warning("Can not determine type of message: %s", content)
                 continue
 
-            mp_messages[key].append(splited_content.strip())
+            if last_key == key and len(mp_messages[key]) > 0:
+                mp_messages[key][-1] += f" {splited_content.strip()}"
+            else:
+                mp_messages[key].append(splited_content.strip())
+            last_key = key
 
         return mp_messages
 
@@ -77,11 +82,12 @@ class ChatParser(BaseParser):
         async with aiofiles.open(filepath, "r", encoding="utf-8") as file:
             contents = await file.readlines()
 
-        mp_messages: dict[Literal["assistant", "user"], list[str]] = {
+        mp_messages: ParserReturnT = {
             "assistant": [],
             "user": [],
         }
 
+        last_key: Literal["assistant", "user", ""] = ""
         for content in contents:
             if content.startswith(self.ASSISTANT):
                 key = "assistant"
@@ -100,7 +106,12 @@ class ChatParser(BaseParser):
                 )
 
             splited_content = splits[1] if len(splits) >= 1 else content
-            mp_messages[key].append(splited_content.strip())
+
+            if last_key == key and len(mp_messages[key]) > 0:
+                mp_messages[key][-1] += f" {splited_content.strip()}"
+            else:
+                mp_messages[key].append(splited_content.strip())
+            last_key = key
 
         return mp_messages
 
