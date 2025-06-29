@@ -1,22 +1,23 @@
 import asyncio
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
+from functools import lru_cache
+import time
+from typing import Final, Literal
 import pandas as pd
 import yaml
 import json
 import logging
-import os
 from pathlib import Path
 import aiofiles
-from jinja2 import Template
-from pydantic import BaseModel, ValidationError
+from jinja2 import Template, UndefinedError
+from difflib import Differ
 
+from pydantic import BaseModel, ValidationError
 import gradio as gr
 from gradio.components.file import File
 
 from agent.batched import Batched
-from agent.programs.impl.evaluation import EvaluationResponse
-from agent.container import Container
-from agent.env import Env
-from agent.models.messages import UserMessage
+from agent.storages.search_engine.bm25s import BM25SSearchEngine, BM25SConfig
 from applications.conversation_eval.indexing import ConstantIngestor
 from applications.conversation_eval.chat import ChatParser, CallParser, ConversationType
 
@@ -25,23 +26,95 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-container = None
-embedding_model = None
-milvus = None
-evaluation_program = None
+bm25s_engine = None
 chat_parser = ChatParser()
 call_parser = CallParser()
 ingestor = ConstantIngestor()
 
-topk = 3
+topk = 1
 batch_size = 5
-prompt_path = "agent/prompts/conversation_eval/groundedness.md"
-with open(prompt_path, "r") as file:
-    prompt_template = Template(file.read())
+
+
+@lru_cache(maxsize=1)
+def get_executor(
+    max_workers: int = 4,
+    executor_type: Literal["processpool", "threadpool"] = "threadpool",
+) -> Executor:
+    match executor_type:
+        case "threadpool":
+            return ThreadPoolExecutor(max_workers=max_workers)
+        case "processpool":
+            # TODO: future due to some concurrent read/write block process now.
+            return ProcessPoolExecutor(max_workers=max_workers)
+        case _:
+            raise ValueError(f"Unsupported executor type: {executor_type}")
+
+
+class Templates:
+    missing_words: Final[Template] = Template(
+        """<span style="background-color:yellow; color:red; font-weight:bold;">{{ word }}</span>"""
+    )
+    redundant_words: Final[Template] = Template(
+        """<span style="background-color:lightgreen; color:black; font-weight:bold;">{{ word }}</span>"""
+    )
 
 
 class EvaluationError(BaseModel):
     error: str
+
+
+class EvaluationRow(BaseModel):
+    score: float
+    rule: str
+    rule_constant: str
+    message: str
+
+
+class HighlighedOutput(BaseModel):
+    query: str
+    doc: str
+    cli: str
+    wrong: int
+    correct: int
+
+    @property
+    def score(self) -> float:
+        if self.wrong + self.correct == 0:
+            return 0.0
+        return self.correct / (self.wrong + self.correct + 1e-6)
+
+
+def highlight_difference(query: str, doc: str) -> HighlighedOutput:
+    differ = Differ()
+    diff = list(differ.compare(query.split(), doc.split()))
+
+    wrong = correct = 0
+    query_parts = []
+    doc_parts = []
+    difference_cli_parts = []
+
+    for word in diff:
+        if word.startswith("- "):
+            wrong += 1
+            query_parts.append(Templates.missing_words.render(word=word[2:]))
+            difference_cli_parts.append(f"\033[91m{word[2:]}\033[0m")
+        elif word.startswith("+ "):
+            wrong += 1
+            doc_parts.append(Templates.redundant_words.render(word=word[2:]))
+            difference_cli_parts.append(f"\033[92m{word[2:]}\033[0m")
+        else:
+            correct += 1
+            query_parts.append(word[2:])
+            doc_parts.append(word[2:])
+            difference_cli_parts.append(word[2:])
+
+    return HighlighedOutput(
+        query=" ".join(query_parts),
+        doc=" ".join(doc_parts),
+        cli=" ".join(difference_cli_parts),
+        wrong=wrong,
+        correct=correct,
+    )
 
 
 class ConstantsFile(BaseModel):
@@ -60,34 +133,17 @@ class ConstantsFile(BaseModel):
         return cls(rules=data)
 
 
-def load_environment(
-    openai_key: str,
-    openai_endpoint: str,
-    openai_version: str,
-    chat_deployment: str,
-    embedding_deployment: str,
-    milvus_collection: str,
-    milvus_uri: str,
-    milvus_token: str,
-):
-    global container, embedding_model, milvus, evaluation_program
+def load_environment(bm25s_collection: str):
+    global bm25s_engine
     try:
-        container = Container(
-            Env(
-                tavily_api_key="",
-                milvus_collection_name=milvus_collection,
-                milvus_uri=milvus_uri,
-                milvus_token=milvus_token,
-                openai_api_key=openai_key,
-                openai_azure_endpoint=openai_endpoint,
-                openai_api_version=openai_version,
-                openai_chat_deployment_name=chat_deployment,
-                openai_embedding_deployment_name=embedding_deployment,
-            )
+        collection_name = bm25s_collection or "conversation_constants"
+        checkpoint_dir = Path("./indexes") / f"bm25s_{collection_name}_index"
+        bm25s_engine = BM25SSearchEngine(
+            checkpoint_dir=checkpoint_dir, config=BM25SConfig()
         )
-        embedding_model = container.embeddings.get("azure_openai")
-        milvus = container.vectordbs.get("milvus")
-        evaluation_program = container.programs.get("evaluation")
+
+        # Let call here to trigger the cache
+        get_executor()
 
         return "✅ Services initialized successfully"
     except ValidationError as e:
@@ -98,26 +154,19 @@ def load_environment(
 
 async def index_constants_file(filepath: Path) -> str:
     try:
-        if not all([embedding_model, milvus]):
-            return (
-                "❌ Services not initialized. Please configure environment first.",
-                "",
-            )
-
-        # mostly validate
-        await ConstantsFile.from_file(filepath)
+        if not bm25s_engine:
+            return "❌ Services not initialized. Please configure environment first."
 
         chunks = await ingestor.ingest(filepath=filepath)
         logger.info("Created %d chunks from constants", len(chunks))
 
-        embeddings = await embedding_model.aembedding([chunk.text for chunk in chunks])
-        await milvus.add(chunks, embeddings)
+        await bm25s_engine.add(chunks)
 
         success_msg = f"✅ Successfully indexed {len(chunks)} constants from the file"
         return success_msg
     except ValidationError as e:
         error_msg = "\n".join([f"- {error['msg']}" for error in e.errors()])
-        return False, f"❌ Validation failed:\n{error_msg}"
+        return f"❌ Validation failed:\n{error_msg}"
     except Exception as e:
         logger.error("Error indexing file: %s", str(e))
         return f"❌ Error indexing file: {str(e)}"
@@ -132,75 +181,90 @@ async def index_file_wrapper(file: File):
 
 async def analyze_conversation(
     conversation_text: str, conversation_type: ConversationType, placeholder_json: str
-) -> list[EvaluationResponse | EvaluationError]:
+) -> list[EvaluationRow | EvaluationError]:
     temp_file = Path("/tmp/temp_conversation.txt")
     async with aiofiles.open(temp_file, "w", encoding="utf-8") as file:
         await file.write(conversation_text)
 
     try:
-        if not all([embedding_model, milvus, evaluation_program]):
+        if not all([bm25s_engine]):
             return [
-                {
-                    "Error": "Services not initialized. Please configure environment first."
-                }
+                EvaluationError(
+                    error="Services not initialized. Please configure environment first."
+                )
             ]
 
         try:
             placeholder = (
                 json.loads(placeholder_json) if placeholder_json.strip() else {}
             )
-        except json.JSONDecodeError:
-            logger.warning(
-                "Invalid JSON format for placeholders, using empty dictionary."
-            )
-            placeholder = {}
+        except json.JSONDecodeError as e:
+            return [EvaluationError(error=f"Error while parsing JSON: {str(e)}")]
 
         match conversation_type:
             case ConversationType.chat:
-                logger.info("Parsing chat conversation")
                 mp_messages = await chat_parser.parse(temp_file)
             case ConversationType.call:
-                logger.info("Parsing call conversation")
                 mp_messages = await call_parser.parse(temp_file)
 
-        responses: list[EvaluationResponse] = []
+        responses: list[EvaluationRow] = []
         counter = 1
         num_ai_messages = len(mp_messages["assistant"])
+
         for ai_contents in Batched.iter(
             mp_messages["assistant"], batch_size=batch_size
         ):
-            embeddings = await embedding_model.aembedding(ai_contents)
-
+            start_time = time.perf_counter()
             retrieved_chunks_list = await asyncio.gather(
-                *[milvus.search(embedding, top_k=topk) for embedding in embeddings]
+                *[
+                    bm25s_engine.search(ai_content, top_k=topk, executor=get_executor())
+                    for ai_content in ai_contents
+                ]
             )
 
-            tasks: list[asyncio.Task[EvaluationResponse]] = []
             for ai_content, retrieved_chunks in zip(ai_contents, retrieved_chunks_list):
-                constants = [
-                    (
-                        scored_chunk.chunk.metadata.rendered_page_path,
-                        scored_chunk.chunk.text,
+                if len(retrieved_chunks) == 0:
+                    raise ValueError(
+                        f"No constants found for AI message: {ai_content[:50]}"
                     )
-                    for scored_chunk in retrieved_chunks.root
-                ]
 
-                prompt_content = prompt_template.render(
-                    bot_message=ai_content,
-                    placeholders=json.dumps(placeholder, indent=2),
-                    style_constants=constants,
+                most_similar_chunk = retrieved_chunks.root[0]
+                template = Template(most_similar_chunk.chunk.text)
+
+                try:
+                    prompt_content = template.render(
+                        **{"raw_call_assignment": placeholder}
+                    )
+                except UndefinedError:
+                    logger.warning(
+                        "Placeholder keys not found in template: %s",
+                        ", ".join(template.undefined_variables),
+                    )
+                    prompt_content = most_similar_chunk.chunk.text
+
+                difference = highlight_difference(ai_content, prompt_content)
+                responses.append(
+                    EvaluationRow(
+                        score=difference.score,
+                        rule=most_similar_chunk.chunk.metadata.group_name,
+                        message=difference.query,
+                        rule_constant=difference.doc,
+                    )
+                )
+                logger.info(
+                    "[%s] Highlighted: %s",
+                    conversation_type,
+                    difference.cli,
                 )
 
-                tasks.append(
-                    evaluation_program.aprocess(
-                        message=UserMessage(content=prompt_content)
-                    )
-                )
-            responses.extend(await asyncio.gather(*tasks))
             gr.Info(
-                "[%.3d/%.3d]Evaluated messages"
-                % (counter * batch_size, num_ai_messages),
-                duration=2,
+                "[%.3d/%.3d]Evaluated messages in %.3f seconds"
+                % (
+                    min(counter * batch_size, num_ai_messages),
+                    num_ai_messages,
+                    time.perf_counter() - start_time,
+                ),
+                duration=3,
             )
             counter += 1
 
@@ -233,31 +297,12 @@ async def analyze_conversation_wrapper(
             case EvaluationError():
                 error_msg = results[0].error
                 return f"❌ Error: {error_msg}", None
-            case EvaluationResponse():
+            case EvaluationRow():
                 df = pd.DataFrame([result.model_dump() for result in results])
                 return f"✅ Analyzed {len(results)} assistant messages", df
 
     except Exception as e:
         return f"❌ Error: {str(e)}", None
-
-
-async def load_from_env_file() -> tuple[str, ...]:
-    """Load configuration from .env file and return field values."""
-    try:
-        env = Env()
-        return (
-            env.openai_api_key or "",
-            env.openai_azure_endpoint or "",
-            env.openai_api_version or "",
-            env.openai_chat_deployment_name or "",
-            env.openai_embedding_deployment_name or "",
-            env.milvus_collection_name or "",
-            env.milvus_uri or "",
-            env.milvus_token or "",
-        )
-    except Exception as e:
-        logger.error("Failed to load from .env file: %s", str(e))
-        return ("", "", "", "", "", "", "", "")
 
 
 with gr.Blocks(title="Conversation Evaluation Tool", theme=gr.themes.Soft()) as demo:
@@ -266,104 +311,35 @@ with gr.Blocks(title="Conversation Evaluation Tool", theme=gr.themes.Soft()) as 
         "Configure environment, upload constants files and analyze conversations for compliance and quality."
     )
 
-    with gr.Tabs():
-        with gr.Tab("⚙️ Environment"):
-            gr.Markdown("## Environment Configuration")
-            gr.Markdown(
-                "Configure your Azure OpenAI and Milvus connections based on your environment settings."
+    # Common configuration panel (merged environment settings)
+    with gr.Row():
+        with gr.Column():
+            bm25s_collection_input = gr.Textbox(
+                label="BM25S Collection Name",
+                placeholder="conversation-eval",
+                value="conversation-eval",
             )
 
-            with gr.Row():
-                with gr.Column():
-                    gr.Markdown("### OpenAI Settings")
-                    openai_key_input = gr.Textbox(
-                        label="OpenAI API Key",
-                        placeholder="Your OpenAI API key",
-                        value=os.getenv("OPENAI_API_KEY", ""),
-                    )
-                    openai_endpoint_input = gr.Textbox(
-                        label="OpenAI Azure Endpoint",
-                        placeholder="https://your-resource.openai.azure.com/",
-                        value=os.getenv("OPENAI_AZURE_ENDPOINT", ""),
-                    )
-                    openai_version_input = gr.Textbox(
-                        label="OpenAI API Version",
-                        placeholder="2024-08-01-preview",
-                        value=os.getenv("OPENAI_API_VERSION", "2024-08-01-preview"),
-                    )
-                    chat_deployment_input = gr.Textbox(
-                        label="Chat Deployment Name",
-                        placeholder="gpt-4.1-mini",
-                        value=os.getenv("OPENAI_CHAT_DEPLOYMENT_NAME", ""),
-                    )
-                    embedding_deployment_input = gr.Textbox(
-                        label="Embedding Deployment Name",
-                        placeholder="text-embedding-3-small",
-                        value=os.getenv("OPENAI_EMBEDDING_DEPLOYMENT_NAME", ""),
-                    )
-
-                with gr.Column():
-                    gr.Markdown("### Milvus Settings")
-                    milvus_collection_input = gr.Textbox(
-                        label="Milvus Collection Name",
-                        placeholder="conversation_constants",
-                        value=os.getenv("MILVUS_COLLECTION_NAME", ""),
-                    )
-                    milvus_uri_input = gr.Textbox(
-                        label="Milvus URI",
-                        placeholder="http://localhost:19530",
-                        value=os.getenv("MILVUS_URI", ""),
-                    )
-                    milvus_token_input = gr.Textbox(
-                        label="Milvus Token",
-                        placeholder="Optional authentication token",
-                        type="password",
-                        value=os.getenv("MILVUS_TOKEN", ""),
-                    )
-
-            with gr.Row():
-                load_env_file_btn = gr.Button(
-                    "Load from .env File", variant="secondary"
-                )
-                load_env_btn = gr.Button(
-                    "Load Environment & Initialize Services", variant="primary"
-                )
-
+        with gr.Column():
             env_status = gr.Textbox(
                 label="Status",
                 interactive=False,
                 value="Please configure and load environment to use the application.",
             )
 
-            load_env_file_btn.click(
-                fn=load_from_env_file,
-                outputs=[
-                    openai_key_input,
-                    openai_endpoint_input,
-                    openai_version_input,
-                    chat_deployment_input,
-                    embedding_deployment_input,
-                    milvus_collection_input,
-                    milvus_uri_input,
-                    milvus_token_input,
-                ],
+        with gr.Column():
+            gr.Markdown("## ⚠️ Initialize services before using")
+            load_env_btn = gr.Button(
+                "Initialize Services", variant="primary", size="lg"
             )
 
-            load_env_btn.click(
-                fn=load_environment,
-                inputs=[
-                    openai_key_input,
-                    openai_endpoint_input,
-                    openai_version_input,
-                    chat_deployment_input,
-                    embedding_deployment_input,
-                    milvus_collection_input,
-                    milvus_uri_input,
-                    milvus_token_input,
-                ],
-                outputs=[env_status],
-            )
+    load_env_btn.click(
+        fn=load_environment,
+        inputs=[bm25s_collection_input],
+        outputs=[env_status],
+    )
 
+    with gr.Tabs():
         with gr.Tab("📁 Indexing"):
             gr.Markdown("## Upload Constants File")
             gr.Markdown(
@@ -428,9 +404,9 @@ with gr.Blocks(title="Conversation Evaluation Tool", theme=gr.themes.Soft()) as 
                         label="Download Results as Excel", visible=False
                     )
 
-            results_df = gr.Dataframe(
-                label="Analysis Results", visible=False, wrap=True
-            )
+            # Add HTML output for highlighted results with center alignment
+            gr.Markdown("### Analysis Results with Highlighted Differences")
+            highlighted_output = gr.HTML(label="Highlighted Results", visible=False)
 
             async def update_ui_after_analysis(
                 conversation_text: str,
@@ -443,29 +419,42 @@ with gr.Blocks(title="Conversation Evaluation Tool", theme=gr.themes.Soft()) as 
 
                 if df is not None:
                     pathout = "conv_analysis.xlsx"
-                    df.to_excel(
+
+                    # Create Excel export with plain text highlighting
+                    df_excel = df.copy()
+                    if "highlight" in df_excel.columns:
+                        import re
+
+                        for i, highlight_html in enumerate(df_excel["highlight"]):
+                            # Remove HTML tags and convert to plain text format
+                            plain_text = re.sub(
+                                r"<span[^>]*>(.*?)</span>", r"[\1]", highlight_html
+                            )
+                            df_excel.loc[i, "highlight"] = plain_text
+
+                    df_excel.to_excel(
                         pathout, sheet_name="Conversation_Analysis", index=False
                     )
+
+                    # Simple HTML output using DataFrame's built-in to_html
+                    html_content = df.to_html(escape=False, index=False)
+
                     return (
                         status,
-                        gr.Dataframe(
-                            value=df,
-                            visible=True,
-                            show_search="search",
-                        ),
+                        gr.HTML(value=html_content, visible=True),
                         gr.DownloadButton(value=pathout, visible=True),
                     )
                 else:
                     return (
                         status,
-                        gr.Dataframe(visible=False),
+                        gr.HTML(visible=False),
                         gr.DownloadButton(visible=False),
                     )
 
             analyze_btn.click(
                 fn=update_ui_after_analysis,
                 inputs=[conversation_input, conversation_type, placeholder_input],
-                outputs=[analysis_status, results_df, download_btn],
+                outputs=[analysis_status, highlighted_output, download_btn],
             )
 
 

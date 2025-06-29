@@ -107,10 +107,10 @@ class ChatParser(BaseParser):
 
 async def main() -> None:
     placeholder = {
-        "raw_call_assignment.customer_pronoun": "anh",
-        "raw_call_assignment.full_name": "PHẠM HOÀI VĂN",
-        "raw_call_assignment.customer_name": "PHẠM HOÀI VĂN",
-        "raw_call_assignment.customer_first_name": "VĂN",
+        "customer_pronoun": "anh",
+        "full_name": "PHẠM HOÀI VĂN",
+        "customer_name": "PHẠM HOÀI VĂN",
+        "customer_first_name": "VĂN",
     }
     prompt_path = "agent/prompts/conversation_eval/groundedness.md"
 

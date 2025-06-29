@@ -14,7 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 class ConstantIngestor:
+    async def validate(self, file_path: Path) -> None:
+        async with aiofiles.open(file_path, "r", encoding="utf-8") as file:
+            content = await file.read()
+        try:
+            yaml.safe_load(content)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Invalid YAML format: {str(e)}")
+
+        return
+
     async def ingest(self, filepath: Path) -> list[Chunk]:
+        await self.validate(filepath)
+
         async with aiofiles.open(filepath, "r", encoding="utf-8") as file:
             rulebooks = yaml.safe_load(await file.read())
 
@@ -31,9 +43,7 @@ class ConstantIngestor:
                         text=str(value),
                         metadata=DocumentMetadata(
                             source=Source.DOCUMENT,
-                            filename=filepath.name,
-                            pageidx=idx,
-                            rendered_page_path=rule_name,
+                            group_name=rule_name,
                         ),
                     )
                     for idx, value in enumerate(rule_constants, start=1)
